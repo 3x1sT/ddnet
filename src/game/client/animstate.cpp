@@ -4,6 +4,7 @@
 #include <base/math.h>
 #include <game/generated/client_data.h>
 
+
 #include "animstate.h"
 
 static void AnimSeqEval(const CAnimSequence *pSeq, float Time, CAnimKeyframe *pFrame)
