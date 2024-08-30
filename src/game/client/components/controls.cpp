@@ -274,6 +274,26 @@ int CControls::SnapInput(int *pData)
 			m_aInputData[!g_Config.m_ClDummy] = *pDummyInput;
 		}
 
+		if(g_Config.m_ClDummyCopy)
+		{
+			CNetObj_PlayerInput *pDummyInput = &m_pClient->m_DummyInput;
+			pDummyInput->m_Direction = m_aInputData[g_Config.m_ClDummy].m_Direction;
+			pDummyInput->m_Hook = m_aInputData[g_Config.m_ClDummy].m_Hook;
+			pDummyInput->m_Jump = m_aInputData[g_Config.m_ClDummy].m_Jump;
+			pDummyInput->m_PlayerFlags = m_aInputData[g_Config.m_ClDummy].m_PlayerFlags;
+			pDummyInput->m_TargetX = m_aInputData[g_Config.m_ClDummy].m_TargetX;
+			pDummyInput->m_TargetY = m_aInputData[g_Config.m_ClDummy].m_TargetY;
+
+			if(!g_Config.m_ClDummyControl)
+				pDummyInput->m_Fire += m_aInputData[g_Config.m_ClDummy].m_Fire - m_aLastData[g_Config.m_ClDummy].m_Fire;
+
+			pDummyInput->m_NextWeapon += m_aInputData[g_Config.m_ClDummy].m_NextWeapon - m_aLastData[g_Config.m_ClDummy].m_NextWeapon;
+			pDummyInput->m_PrevWeapon += m_aInputData[g_Config.m_ClDummy].m_PrevWeapon - m_aLastData[g_Config.m_ClDummy].m_PrevWeapon;
+
+			m_aInputData[!g_Config.m_ClDummy] = *pDummyInput;
+		}
+
+
 		if(g_Config.m_ClDummyControl)
 		{
 			CNetObj_PlayerInput *pDummyInput = &m_pClient->m_DummyInput;
