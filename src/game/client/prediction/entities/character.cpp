@@ -4,8 +4,6 @@
 #include <game/collision.h>
 #include <game/generated/client_data.h>
 #include <game/mapitems.h>
-#include <engine/client/ai.h>
-#include <game/client/ray.h>
 
 #include "character.h"
 #include "laser.h"
@@ -29,14 +27,14 @@ void CCharacter::SetWeapon(int W)
 void CCharacter::SetSolo(bool Solo)
 {
 	m_Core.m_Solo = Solo;
-	TeamsCore()->SetSolo(GetCID(), Solo);
+	TeamsCore()->SetSolo(GetCid(), Solo);
 }
 
 void CCharacter::SetSuper(bool Super)
 {
 	m_Core.m_Super = Super;
 	if(m_Core.m_Super)
-		TeamsCore()->Team(GetCID(), TeamsCore()->m_IsDDRace16 ? VANILLA_TEAM_SUPER : TEAM_SUPER);
+		TeamsCore()->Team(GetCid(), TeamsCore()->m_IsDDRace16 ? VANILLA_TEAM_SUPER : TEAM_SUPER);
 }
 
 bool CCharacter::IsGrounded()
@@ -89,7 +87,7 @@ void CCharacter::HandleJetpack()
 			float Strength = GetTuning(m_TuneZone)->m_JetpackStrength;
 			if(!m_TuneZone)
 				Strength = m_LastJetpackStrength;
-			TakeDamage(Direction * -1.0f * (Strength / 100.0f / 6.11f), 0, GetCID(), m_Core.m_ActiveWeapon);
+			TakeDamage(Direction * -1.0f * (Strength / 100.0f / 6.11f), 0, GetCid(), m_Core.m_ActiveWeapon);
 		}
 	}
 	}
@@ -132,58 +130,57 @@ void CCharacter::HandleNinja()
 		// Set velocity
 		m_Core.m_Vel = m_Core.m_Ninja.m_ActivationDir * g_pData->m_Weapons.m_Ninja.m_Velocity;
 		vec2 OldPos = m_Pos;
-		Collision()->MoveBox(&m_Core.m_Pos, &m_Core.m_Vel, vec2(m_ProximityRadius, m_ProximityRadius), 0.f);
+		Collision()->MoveBox(&m_Core.m_Pos, &m_Core.m_Vel, vec2(m_ProximityRadius, m_ProximityRadius), vec2(GetTuning(m_TuneZone)->m_GroundElasticityX, GetTuning(m_TuneZone)->m_GroundElasticityY));
 
 		// reset velocity so the client doesn't predict stuff
 		m_Core.m_Vel = vec2(0.f, 0.f);
 
 		// check if we Hit anything along the way
 		{
-			CCharacter *apEnts[MAX_CLIENTS];
-			vec2 Dir = m_Pos - OldPos;
+			CEntity *apEnts[MAX_CLIENTS];
 			float Radius = m_ProximityRadius * 2.0f;
-			vec2 Center = OldPos + Dir * 0.5f;
-			int Num = GameWorld()->FindEntities(Center, Radius, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+			int Num = GameWorld()->FindEntities(OldPos, Radius, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
 			// check that we're not in solo part
-			if(TeamsCore()->GetSolo(GetCID()))
+			if(TeamsCore()->GetSolo(GetCid()))
 				return;
 
 			for(int i = 0; i < Num; ++i)
 			{
-				if(apEnts[i] == this)
+				auto *pChr = static_cast<CCharacter *>(apEnts[i]);
+				if(pChr == this)
 					continue;
 
 				// Don't hit players in other teams
-				if(Team() != apEnts[i]->Team())
+				if(Team() != pChr->Team())
 					continue;
 
 				// Don't hit players in solo parts
-				if(TeamsCore()->GetSolo(apEnts[i]->GetCID()))
+				if(TeamsCore()->GetSolo(pChr->GetCid()))
 					return;
 
 				// make sure we haven't Hit this object before
-				bool bAlreadyHit = false;
+				bool AlreadyHit = false;
 				for(int j = 0; j < m_NumObjectsHit; j++)
 				{
-					if(m_aHitObjects[j] == apEnts[i]->GetCID())
-						bAlreadyHit = true;
+					if(m_aHitObjects[j] == pChr->GetCid())
+						AlreadyHit = true;
 				}
-				if(bAlreadyHit)
+				if(AlreadyHit)
 					continue;
 
 				// check so we are sufficiently close
-				if(distance(apEnts[i]->m_Pos, m_Pos) > (m_ProximityRadius * 2.0f))
+				if(distance(pChr->m_Pos, m_Pos) > (m_ProximityRadius * 2.0f))
 					continue;
 
 				// Hit a player, give them damage and stuffs...
 				// set his velocity to fast upward (for now)
 				if(m_NumObjectsHit < 10)
-					m_aHitObjects[m_NumObjectsHit++] = apEnts[i]->GetCID();
+					m_aHitObjects[m_NumObjectsHit++] = pChr->GetCid();
 
-				CCharacter *pChar = GameWorld()->GetCharacterByID(apEnts[i]->GetCID());
+				CCharacter *pChar = GameWorld()->GetCharacterById(pChr->GetCid());
 				if(pChar)
-					pChar->TakeDamage(vec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, GetCID(), WEAPON_NINJA);
+					pChar->TakeDamage(vec2(0, -10.0f), g_pData->m_Weapons.m_Ninja.m_pBase->m_Damage, GetCid(), WEAPON_NINJA);
 			}
 		}
 
@@ -306,16 +303,16 @@ void CCharacter::FireWeapon()
 		if(m_Core.m_HammerHitDisabled)
 			break;
 
-		CCharacter *apEnts[MAX_CLIENTS];
+		CEntity *apEnts[MAX_CLIENTS];
 		int Hits = 0;
-		int Num = GameWorld()->FindEntities(ProjStartPos, m_ProximityRadius * 0.5f, (CEntity **)apEnts,
+		int Num = GameWorld()->FindEntities(ProjStartPos, m_ProximityRadius * 0.5f, apEnts,
 			MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
 		for(int i = 0; i < Num; ++i)
 		{
-			CCharacter *pTarget = apEnts[i];
+			auto *pTarget = static_cast<CCharacter *>(apEnts[i]);
 
-			if((pTarget == this || !CanCollide(pTarget->GetCID())))
+			if((pTarget == this || !CanCollide(pTarget->GetCid())))
 				continue;
 
 			// set his velocity to fast upward (for now)
@@ -351,7 +348,7 @@ void CCharacter::FireWeapon()
 				Force *= Strength;
 
 			pTarget->TakeDamage(Force, g_pData->m_Weapons.m_Hammer.m_pBase->m_Damage,
-				GetCID(), m_Core.m_ActiveWeapon);
+				GetCid(), m_Core.m_ActiveWeapon);
 			pTarget->UnFreeze();
 
 			Hits++;
@@ -375,7 +372,7 @@ void CCharacter::FireWeapon()
 			new CProjectile(
 				GameWorld(),
 				WEAPON_GUN, //Type
-				GetCID(), //Owner
+				GetCid(), //Owner
 				ProjStartPos, //Pos
 				Direction, //Dir
 				Lifetime, //Span
@@ -395,7 +392,7 @@ void CCharacter::FireWeapon()
 			int ShotSpread = 2;
 			for(int i = -ShotSpread; i <= ShotSpread; ++i)
 			{
-				float aSpreading[] = {-0.185f, -0.070f, 0, 0.070f, 0.185f};
+				const float aSpreading[] = {-0.185f, -0.070f, 0, 0.070f, 0.185f};
 				float a = angle(Direction);
 				a += aSpreading[i + 2];
 				float v = 1 - (absolute(i) / (float)ShotSpread);
@@ -403,13 +400,12 @@ void CCharacter::FireWeapon()
 				new CProjectile(
 					GameWorld(),
 					WEAPON_SHOTGUN, //Type
-					GetCID(), //Owner
+					GetCid(), //Owner
 					ProjStartPos, //Pos
-					vec2(cosf(a), sinf(a)) * Speed, //Dir
+					direction(a) * Speed, //Dir
 					(int)(GameWorld()->GameTickSpeed() * Tuning()->m_ShotgunLifetime), //Span
 					false, //Freeze
 					false, //Explosive
-					0, //Force
 					-1 //SoundImpact
 				);
 			}
@@ -418,7 +414,7 @@ void CCharacter::FireWeapon()
 		{
 			float LaserReach = GetTuning(m_TuneZone)->m_LaserReach;
 
-			new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCID(), WEAPON_SHOTGUN);
+			new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(), WEAPON_SHOTGUN);
 		}
 	}
 	break;
@@ -430,13 +426,12 @@ void CCharacter::FireWeapon()
 		new CProjectile(
 			GameWorld(),
 			WEAPON_GRENADE, //Type
-			GetCID(), //Owner
+			GetCid(), //Owner
 			ProjStartPos, //Pos
 			Direction, //Dir
 			Lifetime, //Span
 			false, //Freeze
 			true, //Explosive
-			0, //Force
 			SOUND_GRENADE_EXPLODE //SoundImpact
 		); //SoundImpact
 	}
@@ -446,7 +441,7 @@ void CCharacter::FireWeapon()
 	{
 		float LaserReach = GetTuning(m_TuneZone)->m_LaserReach;
 
-		new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCID(), WEAPON_LASER);
+		new CLaser(GameWorld(), m_Pos, Direction, LaserReach, GetCid(), WEAPON_LASER);
 	}
 	break;
 
@@ -462,7 +457,7 @@ void CCharacter::FireWeapon()
 	break;
 	}
 
-	m_AttackTick = GameWorld()->GameTick();
+	m_AttackTick = GameWorld()->GameTick(); // NOLINT(clang-analyzer-unix.Malloc)
 
 	if(!m_ReloadTimer)
 	{
@@ -494,11 +489,11 @@ void CCharacter::GiveNinja()
 {
 	m_Core.m_Ninja.m_ActivationTick = GameWorld()->GameTick();
 	m_Core.m_aWeapons[WEAPON_NINJA].m_Got = true;
-	if(!m_FreezeTime)
+	if(m_FreezeTime == 0)
 		m_Core.m_aWeapons[WEAPON_NINJA].m_Ammo = -1;
 	if(m_Core.m_ActiveWeapon != WEAPON_NINJA)
 		m_LastWeapon = m_Core.m_ActiveWeapon;
-	m_Core.m_ActiveWeapon = WEAPON_NINJA;
+	SetActiveWeapon(WEAPON_NINJA);
 }
 
 void CCharacter::OnPredictedInput(CNetObj_PlayerInput *pNewInput)
@@ -506,7 +501,7 @@ void CCharacter::OnPredictedInput(CNetObj_PlayerInput *pNewInput)
 	// skip the input if chat is active
 	if(!GameWorld()->m_WorldConfig.m_BugDDRaceInput && pNewInput->m_PlayerFlags & PLAYERFLAG_CHATTING)
 	{
-		// save reseted input
+		// save the reset input
 		mem_copy(&m_SavedInput, &m_Input, sizeof(m_SavedInput));
 		return;
 	}
@@ -551,6 +546,19 @@ void CCharacter::OnDirectInput(CNetObj_PlayerInput *pNewInput)
 	mem_copy(&m_LatestPrevInput, &m_LatestInput, sizeof(m_LatestInput));
 }
 
+void CCharacter::ReleaseHook()
+{
+	m_Core.SetHookedPlayer(-1);
+	m_Core.m_HookState = HOOK_RETRACTED;
+	m_Core.m_TriggeredEvents |= COREEVENT_HOOK_RETRACT;
+}
+
+void CCharacter::ResetHook()
+{
+	ReleaseHook();
+	m_Core.m_HookPos = m_Core.m_Pos;
+}
+
 void CCharacter::ResetInput()
 {
 	m_Input.m_Direction = 0;
@@ -571,26 +579,8 @@ void CCharacter::PreTick()
 	m_Core.Tick(true, !m_pGameWorld->m_WorldConfig.m_NoWeakHookAndBounce);
 }
 
-
 void CCharacter::Tick()
 {
-	static int lasttick;
-	int tick;
-
-	/* for ai */
-	if (m_ID != ai_CID)
-		return;
-
-	tick = GameWorld()->GameTick();
-	if (lasttick == tick)
-		return;
-	lasttick = tick;
-
-	if (!g_Config.m_ClIgnoreAI && ai_rinp_tick != tick) {
-		if (ai_getinp(tick))
-			OnPredictedInput(&ai_inp);
-	}
-
 	if(m_pGameWorld->m_WorldConfig.m_NoWeakHookAndBounce)
 	{
 		m_Core.TickDeferred();
@@ -604,16 +594,6 @@ void CCharacter::Tick()
 	HandleWeapons();
 
 	DDRacePostCoreTick();
-
-	/* for ai */
-	if (ai_reply_tick != tick) {
-		if (!g_Config.m_ClIgnoreAI)
-			ai_reply(this, tick);
-		else {
-			gettiledist(ai_htds, NELM(ai_htds), Collision(), m_Pos, TILE_SOLID);
-			gettiledist(ai_ftds, NELM(ai_ftds), Collision(), m_Pos, TILE_FREEZE);
-		}
-	}
 
 	// Previnput
 	m_PrevInput = m_Input;
@@ -638,19 +618,19 @@ bool CCharacter::TakeDamage(vec2 Force, int Dmg, int From, int Weapon)
 
 // DDRace
 
-bool CCharacter::CanCollide(int ClientID)
+bool CCharacter::CanCollide(int ClientId)
 {
-	return TeamsCore()->CanCollide(GetCID(), ClientID);
+	return TeamsCore()->CanCollide(GetCid(), ClientId);
 }
 
-bool CCharacter::SameTeam(int ClientID)
+bool CCharacter::SameTeam(int ClientId)
 {
-	return TeamsCore()->SameTeam(GetCID(), ClientID);
+	return TeamsCore()->SameTeam(GetCid(), ClientId);
 }
 
 int CCharacter::Team()
 {
-	return TeamsCore()->Team(GetCID());
+	return TeamsCore()->Team(GetCid());
 }
 
 void CCharacter::HandleSkippableTiles(int Index)
@@ -676,36 +656,36 @@ void CCharacter::HandleSkippableTiles(int Index)
 			if(MaxSpeed > 0)
 			{
 				if(Direction.x > 0.0000001f)
-					SpeederAngle = -atan(Direction.y / Direction.x);
+					SpeederAngle = -std::atan(Direction.y / Direction.x);
 				else if(Direction.x < 0.0000001f)
-					SpeederAngle = atan(Direction.y / Direction.x) + 2.0f * asin(1.0f);
+					SpeederAngle = std::atan(Direction.y / Direction.x) + 2.0f * std::asin(1.0f);
 				else if(Direction.y > 0.0000001f)
-					SpeederAngle = asin(1.0f);
+					SpeederAngle = std::asin(1.0f);
 				else
-					SpeederAngle = asin(-1.0f);
+					SpeederAngle = std::asin(-1.0f);
 
 				if(SpeederAngle < 0)
-					SpeederAngle = 4.0f * asin(1.0f) + SpeederAngle;
+					SpeederAngle = 4.0f * std::asin(1.0f) + SpeederAngle;
 
 				if(TempVel.x > 0.0000001f)
-					TeeAngle = -atan(TempVel.y / TempVel.x);
+					TeeAngle = -std::atan(TempVel.y / TempVel.x);
 				else if(TempVel.x < 0.0000001f)
-					TeeAngle = atan(TempVel.y / TempVel.x) + 2.0f * asin(1.0f);
+					TeeAngle = std::atan(TempVel.y / TempVel.x) + 2.0f * std::asin(1.0f);
 				else if(TempVel.y > 0.0000001f)
-					TeeAngle = asin(1.0f);
+					TeeAngle = std::asin(1.0f);
 				else
-					TeeAngle = asin(-1.0f);
+					TeeAngle = std::asin(-1.0f);
 
 				if(TeeAngle < 0)
-					TeeAngle = 4.0f * asin(1.0f) + TeeAngle;
+					TeeAngle = 4.0f * std::asin(1.0f) + TeeAngle;
 
-				TeeSpeed = sqrt(pow(TempVel.x, 2) + pow(TempVel.y, 2));
+				TeeSpeed = std::sqrt(std::pow(TempVel.x, 2) + std::pow(TempVel.y, 2));
 
 				DiffAngle = SpeederAngle - TeeAngle;
-				SpeedLeft = MaxSpeed / 5.0f - cos(DiffAngle) * TeeSpeed;
-				if(abs((int)SpeedLeft) > Force && SpeedLeft > 0.0000001f)
+				SpeedLeft = MaxSpeed / 5.0f - std::cos(DiffAngle) * TeeSpeed;
+				if(absolute((int)SpeedLeft) > Force && SpeedLeft > 0.0000001f)
 					TempVel += Direction * Force;
-				else if(abs((int)SpeedLeft) > Force)
+				else if(absolute((int)SpeedLeft) > Force)
 					TempVel += Direction * -Force;
 				else
 					TempVel += Direction * SpeedLeft;
@@ -944,11 +924,11 @@ void CCharacter::HandleTiles(int Index)
 	}
 
 	// solo part
-	if(((m_TileIndex == TILE_SOLO_ENABLE) || (m_TileFIndex == TILE_SOLO_ENABLE)) && !TeamsCore()->GetSolo(GetCID()))
+	if(((m_TileIndex == TILE_SOLO_ENABLE) || (m_TileFIndex == TILE_SOLO_ENABLE)) && !TeamsCore()->GetSolo(GetCid()))
 	{
 		SetSolo(true);
 	}
-	else if(((m_TileIndex == TILE_SOLO_DISABLE) || (m_TileFIndex == TILE_SOLO_DISABLE)) && TeamsCore()->GetSolo(GetCID()))
+	else if(((m_TileIndex == TILE_SOLO_DISABLE) || (m_TileFIndex == TILE_SOLO_DISABLE)) && TeamsCore()->GetSolo(GetCid()))
 	{
 		SetSolo(false);
 	}
@@ -972,7 +952,7 @@ void CCharacter::HandleTuneLayer()
 	SetTuneZone(GameWorld()->m_WorldConfig.m_UseTuneZones ? Collision()->IsTune(CurrentIndex) : 0);
 
 	if(m_IsLocal)
-		m_Core.m_pWorld->m_aTuning[g_Config.m_ClDummy] = *GetTuning(m_TuneZone); // throw tunings (from specific zone if in a tunezone) into gamecore if the character is local
+		GameWorld()->m_Core.m_aTuning[g_Config.m_ClDummy] = *GetTuning(m_TuneZone); // throw tunings (from specific zone if in a tunezone) into gamecore if the character is local
 	m_Core.m_Tuning = *GetTuning(m_TuneZone);
 }
 
@@ -985,12 +965,9 @@ void CCharacter::DDRaceTick()
 		m_Input.m_Jump = 0;
 		//Hook and weapons are possible in live freeze
 	}
-	if(m_FreezeTime > 0 || m_FreezeTime == -1)
+	if(m_FreezeTime > 0)
 	{
-		if(m_FreezeTime > 0)
-			m_FreezeTime--;
-		else
-			m_Core.m_Ninja.m_ActivationTick = GameWorld()->GameTick();
+		m_FreezeTime--;
 		if(!m_CanMoveInFreeze)
 		{
 			m_Input.m_Direction = 0;
@@ -1065,9 +1042,9 @@ void CCharacter::DDRacePostCoreTick()
 	HandleSkippableTiles(CurrentIndex);
 
 	// handle Anti-Skip tiles
-	std::list<int> Indices = Collision()->GetMapIndices(m_PrevPos, m_Pos);
-	if(!Indices.empty())
-		for(int Index : Indices)
+	std::vector<int> vIndices = Collision()->GetMapIndices(m_PrevPos, m_Pos);
+	if(!vIndices.empty())
+		for(int Index : vIndices)
 			HandleTiles(Index);
 	else
 	{
@@ -1079,11 +1056,11 @@ bool CCharacter::Freeze(int Seconds)
 {
 	if(!GameWorld()->m_WorldConfig.m_PredictFreeze)
 		return false;
-	if((Seconds <= 0 || m_Core.m_Super || m_FreezeTime == -1 || m_FreezeTime > Seconds * GameWorld()->GameTickSpeed()) && Seconds != -1)
+	if(Seconds <= 0 || m_Core.m_Super || m_FreezeTime > Seconds * GameWorld()->GameTickSpeed())
 		return false;
-	if(m_Core.m_FreezeStart < GameWorld()->GameTick() - GameWorld()->GameTickSpeed() || Seconds == -1)
+	if(m_Core.m_FreezeStart < GameWorld()->GameTick() - GameWorld()->GameTickSpeed())
 	{
-		m_FreezeTime = Seconds == -1 ? Seconds : Seconds * GameWorld()->GameTickSpeed();
+		m_FreezeTime = Seconds * GameWorld()->GameTickSpeed();
 		m_Core.m_FreezeStart = GameWorld()->GameTick();
 		return true;
 	}
@@ -1141,18 +1118,42 @@ void CCharacter::GiveAllWeapons()
 	}
 }
 
-CTeamsCore *CCharacter::TeamsCore()
+void CCharacter::ResetVelocity()
 {
-	return m_Core.m_pTeams;
+	m_Core.m_Vel = vec2(0, 0);
 }
 
-CCharacter::CCharacter(CGameWorld *pGameWorld, int ID, CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended) :
+// The method is needed only to reproduce 'shotgun bug' ddnet#5258
+// Use SetVelocity() instead.
+void CCharacter::SetVelocity(const vec2 NewVelocity)
+{
+	m_Core.m_Vel = ClampVel(m_MoveRestrictions, NewVelocity);
+}
+
+void CCharacter::SetRawVelocity(const vec2 NewVelocity)
+{
+	m_Core.m_Vel = NewVelocity;
+}
+
+void CCharacter::AddVelocity(const vec2 Addition)
+{
+	SetVelocity(m_Core.m_Vel + Addition);
+}
+
+void CCharacter::ApplyMoveRestrictions()
+{
+	m_Core.m_Vel = ClampVel(m_MoveRestrictions, m_Core.m_Vel);
+}
+
+CTeamsCore *CCharacter::TeamsCore()
+{
+	return GameWorld()->Teams();
+}
+
+CCharacter::CCharacter(CGameWorld *pGameWorld, int Id, CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_CHARACTER, vec2(0, 0), CCharacterCore::PhysicalSize())
 {
-	/* for ai */
-	m_wantskill = 0;
-
-	m_ID = ID;
+	m_Id = Id;
 	m_IsLocal = false;
 
 	m_LastWeapon = WEAPON_HAMMER;
@@ -1161,10 +1162,8 @@ CCharacter::CCharacter(CGameWorld *pGameWorld, int ID, CNetObj_Character *pChar,
 	m_PrevPrevPos = m_PrevPos = m_Pos = vec2(pChar->m_X, pChar->m_Y);
 	m_Core.Reset();
 	m_Core.Init(&GameWorld()->m_Core, GameWorld()->Collision(), GameWorld()->Teams());
-	m_Core.m_Id = ID;
+	m_Core.m_Id = Id;
 	mem_zero(&m_Core.m_Ninja, sizeof(m_Core.m_Ninja));
-	mem_zero(&m_SavedInput, sizeof(m_SavedInput));
-	m_LatestInput = m_LatestPrevInput = m_PrevInput = m_Input = m_SavedInput;
 	m_Core.m_LeftWall = true;
 	m_ReloadTimer = 0;
 	m_NumObjectsHit = 0;
@@ -1172,8 +1171,9 @@ CCharacter::CCharacter(CGameWorld *pGameWorld, int ID, CNetObj_Character *pChar,
 	m_LastJetpackStrength = 400.0f;
 	m_CanMoveInFreeze = false;
 	m_TeleCheckpoint = 0;
-	m_StrongWeakID = 0;
+	m_StrongWeakId = 0;
 
+	mem_zero(&m_Input, sizeof(m_Input));
 	// never initialize both to zero
 	m_Input.m_TargetX = 0;
 	m_Input.m_TargetY = -1;
@@ -1211,7 +1211,7 @@ void CCharacter::ResetPrediction()
 		SetWeaponGot(w, false);
 		SetWeaponAmmo(w, -1);
 	}
-	if(m_Core.m_HookedPlayer >= 0)
+	if(m_Core.HookedPlayer() >= 0)
 	{
 		m_Core.SetHookedPlayer(-1);
 		m_Core.m_HookState = HOOK_IDLE;
@@ -1231,7 +1231,7 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 		SetSuper(pExtended->m_Flags & CHARACTERFLAG_SUPER);
 
 		m_TeleCheckpoint = pExtended->m_TeleCheckpoint;
-		m_StrongWeakID = pExtended->m_StrongWeakID;
+		m_StrongWeakId = pExtended->m_StrongWeakId;
 
 		const bool Ninja = (pExtended->m_Flags & CHARACTERFLAG_WEAPON_NINJA) != 0;
 		if(Ninja && m_Core.m_ActiveWeapon != WEAPON_NINJA)
@@ -1245,7 +1245,7 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 			{
 				if(m_FreezeTime == 0)
 					Freeze();
-				m_FreezeTime = pExtended->m_FreezeEnd - GameWorld()->GameTick();
+				m_FreezeTime = maximum(1, pExtended->m_FreezeEnd - GameWorld()->GameTick());
 			}
 			else if(pExtended->m_FreezeEnd == -1)
 				m_Core.m_DeepFrozen = true;
@@ -1374,14 +1374,14 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 		}
 		else
 		{
-			m_Input.m_TargetX = m_SavedInput.m_TargetX = cosf(pChar->m_Angle / 256.0f) * 256.0f;
-			m_Input.m_TargetY = m_SavedInput.m_TargetY = sinf(pChar->m_Angle / 256.0f) * 256.0f;
+			m_Input.m_TargetX = m_SavedInput.m_TargetX = std::cos(pChar->m_Angle / 256.0f) * 256.0f;
+			m_Input.m_TargetY = m_SavedInput.m_TargetY = std::sin(pChar->m_Angle / 256.0f) * 256.0f;
 		}
 	}
 
 	// in most cases the reload timer can be determined from the last attack tick
 	// (this is only needed for autofire weapons to prevent the predicted reload timer from desyncing)
-	if(IsLocal && m_Core.m_ActiveWeapon != WEAPON_HAMMER)
+	if(IsLocal && m_Core.m_ActiveWeapon != WEAPON_HAMMER && !m_Core.m_aWeapons[WEAPON_NINJA].m_Got)
 	{
 		if(maximum(m_LastTuneZoneTick, m_LastWeaponSwitchTick) + GameWorld()->GameTickSpeed() < GameWorld()->GameTick())
 		{
@@ -1395,12 +1395,10 @@ void CCharacter::Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtende
 
 void CCharacter::SetCoreWorld(CGameWorld *pGameWorld)
 {
-	m_Core.m_pWorld = &pGameWorld->m_Core;
-	m_Core.m_pCollision = pGameWorld->Collision();
-	m_Core.m_pTeams = pGameWorld->Teams();
+	m_Core.SetCoreWorld(&pGameWorld->m_Core, pGameWorld->Collision(), pGameWorld->Teams());
 }
 
-bool CCharacter::Match(CCharacter *pChar)
+bool CCharacter::Match(CCharacter *pChar) const
 {
 	return distance(pChar->m_Core.m_Pos, m_Core.m_Pos) <= 32.f;
 }

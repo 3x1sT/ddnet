@@ -78,17 +78,16 @@ void CParticles::Update(float TimePassed)
 	if(TimePassed <= 0.0f)
 		return;
 
-	static float FrictionFraction = 0;
-	FrictionFraction += TimePassed;
+	m_FrictionFraction += TimePassed;
 
-	if(FrictionFraction > 2.0f) // safety messure
-		FrictionFraction = 0;
+	if(m_FrictionFraction > 2.0f) // safety measure
+		m_FrictionFraction = 0;
 
 	int FrictionCount = 0;
-	while(FrictionFraction > 0.05f)
+	while(m_FrictionFraction > 0.05f)
 	{
 		FrictionCount++;
-		FrictionFraction -= 0.05f;
+		m_FrictionFraction -= 0.05f;
 	}
 
 	for(int &FirstPart : m_aFirstPart)
@@ -107,7 +106,7 @@ void CParticles::Update(float TimePassed)
 			vec2 Vel = m_aParticles[i].m_Vel * TimePassed;
 			if(m_aParticles[i].m_Collides)
 			{
-				Collision()->MovePoint(&m_aParticles[i].m_Pos, &Vel, 0.1f + 0.9f * random_float(), NULL);
+				Collision()->MovePoint(&m_aParticles[i].m_Pos, &Vel, random_float(0.1f, 1.0f), NULL);
 			}
 			else
 			{
@@ -145,26 +144,25 @@ void CParticles::Update(float TimePassed)
 
 void CParticles::OnRender()
 {
-	if(Client()->State() < IClient::STATE_ONLINE)
+	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
 		return;
 
 	set_new_tick();
-	static int64_t LastTime = 0;
 	int64_t t = time();
 
 	if(Client()->State() == IClient::STATE_DEMOPLAYBACK)
 	{
 		const IDemoPlayer::CInfo *pInfo = DemoPlayer()->BaseInfo();
 		if(!pInfo->m_Paused)
-			Update((float)((t - LastTime) / (double)time_freq()) * pInfo->m_Speed);
+			Update((float)((t - m_LastRenderTime) / (double)time_freq()) * pInfo->m_Speed);
 	}
 	else
 	{
 		if(m_pClient->m_Snap.m_pGameInfoObj && !(m_pClient->m_Snap.m_pGameInfoObj->m_GameStateFlags & GAMESTATEFLAG_PAUSED))
-			Update((float)((t - LastTime) / (double)time_freq()));
+			Update((float)((t - m_LastRenderTime) / (double)time_freq()));
 	}
 
-	LastTime = t;
+	m_LastRenderTime = t;
 }
 
 void CParticles::OnInit()
@@ -195,7 +193,7 @@ bool CParticles::ParticleIsVisibleOnScreen(const vec2 &CurPos, float CurSize)
 	Graphics()->GetScreen(&ScreenX0, &ScreenY0, &ScreenX1, &ScreenY1);
 
 	// for simplicity assume the worst case rotation, that increases the bounding box around the particle by its diagonal
-	const float SqrtOf2 = sqrtf(2);
+	const float SqrtOf2 = std::sqrt(2);
 	CurSize = SqrtOf2 * CurSize;
 
 	// always uses the mid of the particle

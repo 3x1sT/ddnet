@@ -15,19 +15,19 @@ static constexpr int gs_PickupPhysSize = 14;
 CPickup::CPickup(CGameWorld *pGameWorld, int Type, int SubType, int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_PICKUP, vec2(0, 0), gs_PickupPhysSize)
 {
+	m_Core = vec2(0.0f, 0.0f);
 	m_Type = Type;
 	m_Subtype = SubType;
 
 	m_Layer = Layer;
 	m_Number = Number;
 
-	Reset();
-
 	GameWorld()->InsertEntity(this);
 }
 
 void CPickup::Reset()
 {
+	m_MarkedForDestroy = true;
 }
 
 void CPickup::Tick()
@@ -35,11 +35,11 @@ void CPickup::Tick()
 	Move();
 
 	// Check if a player intersected us
-	CCharacter *apEnts[MAX_CLIENTS];
-	int Num = GameWorld()->FindEntities(m_Pos, 20.0f, (CEntity **)apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+	CEntity *apEnts[MAX_CLIENTS];
+	int Num = GameWorld()->FindEntities(m_Pos, GetProximityRadius() + ms_CollisionExtraSize, apEnts, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 	for(int i = 0; i < Num; ++i)
 	{
-		CCharacter *pChr = apEnts[i];
+		auto *pChr = static_cast<CCharacter *>(apEnts[i]);
 
 		if(pChr && pChr->IsAlive())
 		{
@@ -142,7 +142,7 @@ void CPickup::Tick()
 						GameServer()->CreateSound(m_Pos, SOUND_PICKUP_SHOTGUN, pChr->TeamMask());
 
 					if(pChr->GetPlayer())
-						GameServer()->SendWeaponPickup(pChr->GetPlayer()->GetCID(), m_Subtype);
+						GameServer()->SendWeaponPickup(pChr->GetPlayer()->GetCid(), m_Subtype);
 				}
 				break;
 
@@ -168,59 +168,27 @@ void CPickup::Snap(int SnappingClient)
 	if(NetworkClipped(SnappingClient))
 		return;
 
-	CCharacter *pChar = GameServer()->GetPlayerChar(SnappingClient);
-
-	if(SnappingClient != SERVER_DEMO_CLIENT && (GameServer()->m_apPlayers[SnappingClient]->GetTeam() == TEAM_SPECTATORS || GameServer()->m_apPlayers[SnappingClient]->IsPaused()) && GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID != SPEC_FREEVIEW)
-		pChar = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID);
-
 	int SnappingClientVersion = GameServer()->GetClientVersion(SnappingClient);
+	bool Sixup = Server()->IsSixup(SnappingClient);
 
-	CNetObj_EntityEx *pEntData = 0;
-	if(SnappingClientVersion >= VERSION_DDNET_SWITCH && (m_Layer == LAYER_SWITCH || length(m_Core) > 0))
-		pEntData = static_cast<CNetObj_EntityEx *>(Server()->SnapNewItem(NETOBJTYPE_ENTITYEX, GetID(), sizeof(CNetObj_EntityEx)));
+	if(SnappingClientVersion < VERSION_DDNET_ENTITY_NETOBJS)
+	{
+		CCharacter *pChar = GameServer()->GetPlayerChar(SnappingClient);
 
-	if(pEntData)
-	{
-		pEntData->m_SwitchNumber = m_Number;
-		pEntData->m_Layer = m_Layer;
-		pEntData->m_EntityClass = ENTITYCLASS_PICKUP;
-	}
-	else
-	{
+		if(SnappingClient != SERVER_DEMO_CLIENT && (GameServer()->m_apPlayers[SnappingClient]->GetTeam() == TEAM_SPECTATORS || GameServer()->m_apPlayers[SnappingClient]->IsPaused()) && GameServer()->m_apPlayers[SnappingClient]->m_SpectatorId != SPEC_FREEVIEW)
+			pChar = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorId);
+
 		int Tick = (Server()->Tick() % Server()->TickSpeed()) % 11;
 		if(pChar && pChar->IsAlive() && m_Layer == LAYER_SWITCH && m_Number > 0 && !Switchers()[m_Number].m_aStatus[pChar->Team()] && !Tick)
 			return;
 	}
 
-	int Size = Server()->IsSixup(SnappingClient) ? 3 * 4 : sizeof(CNetObj_Pickup);
-	CNetObj_Pickup *pPickup = static_cast<CNetObj_Pickup *>(Server()->SnapNewItem(NETOBJTYPE_PICKUP, GetID(), Size));
-	if(!pPickup)
-		return;
-
-	pPickup->m_X = (int)m_Pos.x;
-	pPickup->m_Y = (int)m_Pos.y;
-	pPickup->m_Type = m_Type;
-	if(SnappingClientVersion < VERSION_DDNET_WEAPON_SHIELDS)
-	{
-		if(m_Type >= POWERUP_ARMOR_SHOTGUN && m_Type <= POWERUP_ARMOR_LASER)
-		{
-			pPickup->m_Type = POWERUP_ARMOR;
-		}
-	}
-	if(Server()->IsSixup(SnappingClient))
-	{
-		if(m_Type == POWERUP_WEAPON)
-			pPickup->m_Type = m_Subtype == WEAPON_SHOTGUN ? 3 : m_Subtype == WEAPON_GRENADE ? 2 : 4;
-		else if(m_Type == POWERUP_NINJA)
-			pPickup->m_Type = 5;
-	}
-	else
-		pPickup->m_Subtype = m_Subtype;
+	GameServer()->SnapPickup(CSnapContext(SnappingClientVersion, Sixup), GetId(), m_Pos, m_Type, m_Subtype, m_Number);
 }
 
 void CPickup::Move()
 {
-	if(Server()->Tick() % int(Server()->TickSpeed() * 0.15f) == 0)
+	if(Server()->Tick() % (int)(Server()->TickSpeed() * 0.15f) == 0)
 	{
 		int Flags;
 		int index = GameServer()->Collision()->IsMover(m_Pos.x, m_Pos.y, &Flags);

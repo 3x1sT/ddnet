@@ -5,6 +5,10 @@
 
 #include <base/vmath.h>
 #include <engine/map.h>
+#include <engine/shared/protocol.h>
+#include <game/server/teams.h>
+
+struct CScoreLoadBestTimeResult;
 
 /*
 	Class: Game Controller
@@ -15,12 +19,13 @@ class IGameController
 {
 	friend class CSaveTeam; // need access to GameServer() and Server()
 
-	vec2 m_aaSpawnPoints[3][64];
-	int m_aNumSpawnPoints[3];
+	std::vector<vec2> m_avSpawnPoints[3];
 
 	class CGameContext *m_pGameServer;
 	class CConfig *m_pConfig;
 	class IServer *m_pServer;
+
+	CGameTeams m_Teams;
 
 protected:
 	CGameContext *GameServer() const { return m_pGameServer; }
@@ -103,12 +108,12 @@ public:
 		Returns:
 			bool?
 	*/
-	virtual bool OnEntity(int Index, vec2 Pos, int Layer, int Flags, int Number = 0);
+	virtual bool OnEntity(int Index, int x, int y, int Layer, int Flags, bool Initial, int Number = 0);
 
 	virtual void OnPlayerConnect(class CPlayer *pPlayer);
 	virtual void OnPlayerDisconnect(class CPlayer *pPlayer, const char *pReason);
 
-	void OnReset();
+	virtual void OnReset();
 
 	// game
 	void DoWarmup(int Seconds);
@@ -117,14 +122,12 @@ public:
 	void EndRound();
 	void ChangeMap(const char *pToMap);
 
-	bool IsFriendlyFire(int ClientID1, int ClientID2);
-
 	bool IsForceBalanced();
 
 	/*
 
 	*/
-	virtual bool CanBeMovedOnBalance(int ClientID);
+	virtual bool CanBeMovedOnBalance(int ClientId);
 
 	virtual void Tick();
 
@@ -138,15 +141,18 @@ public:
 
 	*/
 	virtual const char *GetTeamName(int Team);
-	virtual int GetAutoTeam(int NotThisID);
-	virtual bool CanJoinTeam(int Team, int NotThisID);
+	virtual int GetAutoTeam(int NotThisId);
+	virtual bool CanJoinTeam(int Team, int NotThisId, char *pErrorReason, int ErrorReasonSize);
 	int ClampTeam(int Team);
 
-	virtual int64_t GetMaskForPlayerWorldEvent(int Asker, int ExceptID = -1);
+	CClientMask GetMaskForPlayerWorldEvent(int Asker, int ExceptID = -1);
 
+	bool IsTeamPlay() { return m_GameFlags & GAMEFLAG_TEAMS; }
 	// DDRace
 
 	float m_CurrentRecord;
+	CGameTeams &Teams() { return m_Teams; }
+	std::shared_ptr<CScoreLoadBestTimeResult> m_pLoadBestTimeResult;
 };
 
 #endif

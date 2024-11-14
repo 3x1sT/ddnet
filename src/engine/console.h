@@ -7,6 +7,8 @@
 #include <base/color.h>
 #include <engine/storage.h>
 
+#include <memory>
+
 static const ColorRGBA gs_ConsoleDefaultColor(1, 1, 1, 1);
 
 enum LEVEL : char;
@@ -14,7 +16,7 @@ struct CChecksumData;
 
 class IConsole : public IInterface
 {
-	MACRO_INTERFACE("console", 0)
+	MACRO_INTERFACE("console")
 public:
 	//	TODO: rework/cleanup
 	enum
@@ -28,11 +30,11 @@ public:
 		ACCESS_LEVEL_HELPER,
 		ACCESS_LEVEL_USER,
 
-		TEMPCMD_NAME_LENGTH = 32,
+		TEMPCMD_NAME_LENGTH = 64,
 		TEMPCMD_HELP_LENGTH = 192,
 		TEMPCMD_PARAMS_LENGTH = 96,
 
-		MAX_PRINT_CB = 4,
+		CMDLINE_LENGTH = 512,
 
 		CLIENT_ID_GAME = -2,
 		CLIENT_ID_NO_GAME = -3,
@@ -48,19 +50,19 @@ public:
 		IResult() { m_NumArgs = 0; }
 		virtual ~IResult() {}
 
-		virtual int GetInteger(unsigned Index) = 0;
-		virtual float GetFloat(unsigned Index) = 0;
-		virtual const char *GetString(unsigned Index) = 0;
-		virtual ColorHSLA GetColor(unsigned Index, bool Light) = 0;
+		virtual int GetInteger(unsigned Index) const = 0;
+		virtual float GetFloat(unsigned Index) const = 0;
+		virtual const char *GetString(unsigned Index) const = 0;
+		virtual ColorHSLA GetColor(unsigned Index, bool Light) const = 0;
 
 		virtual void RemoveArgument(unsigned Index) = 0;
 
 		int NumArguments() const { return m_NumArgs; }
-		int m_ClientID;
+		int m_ClientId;
 
 		// DDRace
 
-		virtual int GetVictim() = 0;
+		virtual int GetVictim() const = 0;
 	};
 
 	class CCommandInfo
@@ -80,7 +82,7 @@ public:
 		int GetAccessLevel() const { return m_AccessLevel; }
 	};
 
-	typedef void (*FTeeHistorianCommandCallback)(int ClientID, int FlagMask, const char *pCmd, IResult *pResult, void *pUser);
+	typedef void (*FTeeHistorianCommandCallback)(int ClientId, int FlagMask, const char *pCmd, IResult *pResult, void *pUser);
 	typedef void (*FPrintCallback)(const char *pStr, void *pUser, ColorRGBA PrintColor);
 	typedef void (*FPossibleCallback)(int Index, const char *pCmd, void *pUser);
 	typedef void (*FCommandCallback)(IResult *pResult, void *pUserData);
@@ -104,29 +106,30 @@ public:
 	virtual void StoreCommands(bool Store) = 0;
 
 	virtual bool LineIsValid(const char *pStr) = 0;
-	virtual void ExecuteLine(const char *pStr, int ClientID = -1, bool InterpretSemicolons = true) = 0;
-	virtual void ExecuteLineFlag(const char *pStr, int FlasgMask, int ClientID = -1, bool InterpretSemicolons = true) = 0;
-	virtual void ExecuteLineStroked(int Stroke, const char *pStr, int ClientID = -1, bool InterpretSemicolons = true) = 0;
-	virtual void ExecuteFile(const char *pFilename, int ClientID = -1, bool LogFailure = false, int StorageType = IStorage::TYPE_ALL) = 0;
+	virtual void ExecuteLine(const char *pStr, int ClientId = -1, bool InterpretSemicolons = true) = 0;
+	virtual void ExecuteLineFlag(const char *pStr, int FlasgMask, int ClientId = -1, bool InterpretSemicolons = true) = 0;
+	virtual void ExecuteLineStroked(int Stroke, const char *pStr, int ClientId = -1, bool InterpretSemicolons = true) = 0;
+	virtual bool ExecuteFile(const char *pFilename, int ClientId = -1, bool LogFailure = false, int StorageType = IStorage::TYPE_ALL) = 0;
 
 	virtual char *Format(char *pBuf, int Size, const char *pFrom, const char *pStr) = 0;
-	virtual void Print(int Level, const char *pFrom, const char *pStr, ColorRGBA PrintColor = gs_ConsoleDefaultColor) = 0;
+	virtual void Print(int Level, const char *pFrom, const char *pStr, ColorRGBA PrintColor = gs_ConsoleDefaultColor) const = 0;
 	virtual void SetTeeHistorianCommandCallback(FTeeHistorianCommandCallback pfnCallback, void *pUser) = 0;
 	virtual void SetUnknownCommandCallback(FUnknownCommandCallback pfnCallback, void *pUser) = 0;
 	virtual void InitChecksum(CChecksumData *pData) const = 0;
 
 	virtual void SetAccessLevel(int AccessLevel) = 0;
 
-	virtual void ResetServerGameSettings() = 0;
-
 	static LEVEL ToLogLevel(int ConsoleLevel);
+	static int ToLogLevelFilter(int ConsoleLevel);
 
 	// DDRace
 
-	bool m_Cheated;
+	virtual bool Cheated() const = 0;
+
+	virtual int FlagMask() const = 0;
 	virtual void SetFlagMask(int FlagMask) = 0;
 };
 
-extern IConsole *CreateConsole(int FlagMask);
+std::unique_ptr<IConsole> CreateConsole(int FlagMask);
 
 #endif // FILE_ENGINE_CONSOLE_H

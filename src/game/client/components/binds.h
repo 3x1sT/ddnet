@@ -8,12 +8,12 @@
 
 #include <game/client/component.h>
 
+#include <vector>
+
 class IConfigManager;
 
 class CBinds : public CComponent
 {
-	int GetKeyID(const char *pKeyName);
-
 	static void ConBind(IConsole::IResult *pResult, void *pUserData);
 	static void ConBinds(IConsole::IResult *pResult, void *pUserData);
 	static void ConUnbind(IConsole::IResult *pResult, void *pUserData);
@@ -21,6 +21,20 @@ class CBinds : public CComponent
 	class IConsole *GetConsole() const { return Console(); }
 
 	static void ConfigSaveCallback(IConfigManager *pConfigManager, void *pUserData);
+
+	class CBindSlot
+	{
+	public:
+		int m_Key;
+		int m_ModifierMask;
+
+		CBindSlot(int Key, int ModifierMask) :
+			m_Key(Key),
+			m_ModifierMask(ModifierMask)
+		{
+		}
+	};
+	CBindSlot GetBindSlot(const char *pBindString) const;
 
 public:
 	CBinds();
@@ -32,8 +46,10 @@ public:
 	public:
 		CBinds *m_pBinds;
 		virtual int Sizeof() const override { return sizeof(*this); }
-		virtual bool OnInput(IInput::CEvent Event) override;
+		virtual bool OnInput(const IInput::CEvent &Event) override;
 	};
+
+	bool m_MouseOnAction;
 
 	enum
 	{
@@ -48,19 +64,18 @@ public:
 
 	CBindsSpecial m_SpecialBinds;
 
-	void Bind(int KeyID, const char *pStr, bool FreeOnly = false, int ModifierCombination = MODIFIER_NONE);
+	void Bind(int KeyId, const char *pStr, bool FreeOnly = false, int ModifierCombination = MODIFIER_NONE);
 	void SetDefaults();
 	void UnbindAll();
-	const char *Get(int KeyID, int ModifierCombination);
-	void GetKey(const char *pBindStr, char *aBuf, unsigned BufSize);
-	int GetBindSlot(const char *pBindString, int *pModifierCombination);
+	const char *Get(int KeyId, int ModifierCombination);
+	void GetKey(const char *pBindStr, char *pBuf, size_t BufSize);
 	static int GetModifierMask(IInput *pInput);
 	static int GetModifierMaskOfKey(int Key);
 	static const char *GetModifierName(int Modifier);
-	static const char *GetKeyBindModifiersName(int ModifierCombination);
+	static void GetKeyBindModifiersName(int ModifierCombination, char *pBuf, size_t BufSize);
 
 	virtual void OnConsoleInit() override;
-	virtual bool OnInput(IInput::CEvent Event) override;
+	virtual bool OnInput(const IInput::CEvent &Event) override;
 
 	// DDRace
 
@@ -68,5 +83,6 @@ public:
 
 private:
 	char *m_aapKeyBindings[MODIFIER_COMBINATION_COUNT][KEY_LAST];
+	std::vector<CBindSlot> m_vActiveBinds;
 };
 #endif

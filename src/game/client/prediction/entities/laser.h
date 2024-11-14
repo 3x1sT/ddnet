@@ -19,8 +19,7 @@ public:
 	const vec2 &GetFrom() { return m_From; }
 	const int &GetOwner() { return m_Owner; }
 	const int &GetEvalTick() { return m_EvalTick; }
-	CLaser(CGameWorld *pGameWorld, int ID, CLaserData *pLaser);
-	void FillInfo(CNetObj_Laser *pLaser);
+	CLaser(CGameWorld *pGameWorld, int Id, CLaserData *pLaser);
 	bool Match(CLaser *pLaser);
 	CLaserData GetData() const;
 
@@ -31,8 +30,6 @@ protected:
 private:
 	vec2 m_From;
 	vec2 m_Dir;
-	vec2 m_TelePos;
-	bool m_WasTele;
 	float m_Energy;
 	int m_Bounces;
 	int m_EvalTick;
