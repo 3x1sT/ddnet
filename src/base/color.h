@@ -5,8 +5,6 @@
 #include <base/math.h>
 #include <base/vmath.h>
 
-#include <optional>
-
 /*
 	Title: Color handling
 */
@@ -111,61 +109,16 @@ public:
 	bool operator==(const color4_base &col) const { return x == col.x && y == col.y && z == col.z && a == col.a; }
 	bool operator!=(const color4_base &col) const { return x != col.x || y != col.y || z != col.z || a != col.a; }
 
-	unsigned Pack(bool Alpha = true) const
+	unsigned Pack(bool Alpha = true)
 	{
-		return (Alpha ? ((unsigned)round_to_int(a * 255.0f) << 24) : 0) + ((unsigned)round_to_int(x * 255.0f) << 16) + ((unsigned)round_to_int(y * 255.0f) << 8) + (unsigned)round_to_int(z * 255.0f);
+		return (Alpha ? ((unsigned)(a * 255.0f) << 24) : 0) + ((unsigned)(x * 255.0f) << 16) + ((unsigned)(y * 255.0f) << 8) + (unsigned)(z * 255.0f);
 	}
 
-	unsigned PackAlphaLast(bool Alpha = true) const
+	DerivedT WithAlpha(float alpha)
 	{
-		if(Alpha)
-			return ((unsigned)round_to_int(x * 255.0f) << 24) + ((unsigned)round_to_int(y * 255.0f) << 16) + ((unsigned)round_to_int(z * 255.0f) << 8) + (unsigned)round_to_int(a * 255.0f);
-		return ((unsigned)round_to_int(x * 255.0f) << 16) + ((unsigned)round_to_int(y * 255.0f) << 8) + (unsigned)round_to_int(z * 255.0f);
-	}
-
-	DerivedT WithAlpha(float alpha) const
-	{
-		DerivedT col(static_cast<const DerivedT &>(*this));
+		DerivedT col(static_cast<DerivedT &>(*this));
 		col.a = alpha;
 		return col;
-	}
-
-	DerivedT WithMultipliedAlpha(float alpha) const
-	{
-		DerivedT col(static_cast<const DerivedT &>(*this));
-		col.a *= alpha;
-		return col;
-	}
-
-	DerivedT Multiply(const DerivedT &Other) const
-	{
-		DerivedT Color(static_cast<const DerivedT &>(*this));
-		Color.x *= Other.x;
-		Color.y *= Other.y;
-		Color.z *= Other.z;
-		Color.a *= Other.a;
-		return Color;
-	}
-
-	template<typename UnpackT>
-	static UnpackT UnpackAlphaLast(unsigned Color, bool Alpha = true)
-	{
-		UnpackT Result;
-		if(Alpha)
-		{
-			Result.x = ((Color >> 24) & 0xFF) / 255.0f;
-			Result.y = ((Color >> 16) & 0xFF) / 255.0f;
-			Result.z = ((Color >> 8) & 0xFF) / 255.0f;
-			Result.a = ((Color >> 0) & 0xFF) / 255.0f;
-		}
-		else
-		{
-			Result.x = ((Color >> 16) & 0xFF) / 255.0f;
-			Result.y = ((Color >> 8) & 0xFF) / 255.0f;
-			Result.z = ((Color >> 0) & 0xFF) / 255.0f;
-			Result.a = 1.0f;
-		}
-		return Result;
 	}
 };
 
@@ -177,19 +130,19 @@ public:
 
 	constexpr static const float DARKEST_LGT = 0.5f;
 
-	ColorHSLA UnclampLighting(float Darkest = DARKEST_LGT) const
+	ColorHSLA UnclampLighting(float Darkest = DARKEST_LGT)
 	{
 		ColorHSLA col = *this;
 		col.l = Darkest + col.l * (1.0f - Darkest);
 		return col;
 	}
 
-	unsigned Pack(bool Alpha = true) const
+	unsigned Pack(bool Alpha = true)
 	{
 		return color4_base::Pack(Alpha);
 	}
 
-	unsigned Pack(float Darkest, bool Alpha = false) const
+	unsigned Pack(float Darkest, bool Alpha = false)
 	{
 		ColorHSLA col = *this;
 		col.l = (l - Darkest) / (1 - Darkest);
@@ -236,7 +189,7 @@ inline ColorRGBA color_cast(const ColorHSLA &hsl)
 
 	float h1 = hsl.h * 6;
 	float c = (1.f - absolute(2 * hsl.l - 1)) * hsl.s;
-	float x = c * (1.f - absolute(std::fmod(h1, 2) - 1.f));
+	float x = c * (1.f - absolute(fmodf(h1, 2) - 1.f));
 
 	switch(round_truncate(h1))
 	{
@@ -275,14 +228,14 @@ template<>
 inline ColorHSLA color_cast(const ColorHSVA &hsv)
 {
 	float l = hsv.v * (1 - hsv.s * 0.5f);
-	return ColorHSLA(hsv.h, (l == 0.0f || l == 1.0f) ? 0 : (hsv.v - l) / minimum(l, 1 - l), l, hsv.a);
+	return ColorHSLA(hsv.h, (l == 0.0f || l == 1.0f) ? 0 : (hsv.v - l) / minimum(l, 1 - l), l);
 }
 
 template<>
 inline ColorHSVA color_cast(const ColorHSLA &hsl)
 {
 	float v = hsl.l + hsl.s * minimum(hsl.l, 1 - hsl.l);
-	return ColorHSVA(hsl.h, v == 0.0f ? 0 : 2 - (2 * hsl.l / v), v, hsl.a);
+	return ColorHSVA(hsl.h, v == 0.0f ? 0 : 2 - (2 * hsl.l / v), v);
 }
 
 template<>
@@ -308,8 +261,5 @@ T color_invert(const T &col)
 {
 	return T(1.0f - col.x, 1.0f - col.y, 1.0f - col.z, 1.0f - col.a);
 }
-
-template<typename T>
-std::optional<T> color_parse(const char *pStr);
 
 #endif

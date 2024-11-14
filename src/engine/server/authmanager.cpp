@@ -1,6 +1,5 @@
 #include "authmanager.h"
 #include <base/hash_ctxt.h>
-#include <base/system.h>
 #include <engine/shared/config.h>
 #include <game/generated/protocol.h>
 
@@ -66,21 +65,21 @@ int CAuthManager::AddKey(const char *pIdent, const char *pPw, int AuthLevel)
 	return AddKeyHash(pIdent, HashPassword(pPw, aSalt), aSalt, AuthLevel);
 }
 
-void CAuthManager::RemoveKey(int Slot)
+int CAuthManager::RemoveKey(int Slot)
 {
 	m_vKeys.erase(m_vKeys.begin() + Slot);
-	// Update indices of default keys
 	for(int &Default : m_aDefault)
 	{
 		if(Default == Slot)
 		{
 			Default = -1;
 		}
-		else if(Default > Slot)
+		else if(Default == (int)m_vKeys.size())
 		{
-			--Default;
+			Default = Slot;
 		}
 	}
+	return m_vKeys.size();
 }
 
 int CAuthManager::FindKey(const char *pIdent) const

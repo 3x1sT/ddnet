@@ -2,18 +2,15 @@
 
 #include "gameclient.h"
 
-#include <base/system.h>
-
 class IKernel *CComponent::Kernel() const { return m_pClient->Kernel(); }
 class IEngine *CComponent::Engine() const { return m_pClient->Engine(); }
 class IGraphics *CComponent::Graphics() const { return m_pClient->Graphics(); }
 class ITextRender *CComponent::TextRender() const { return m_pClient->TextRender(); }
 class IInput *CComponent::Input() const { return m_pClient->Input(); }
 class IStorage *CComponent::Storage() const { return m_pClient->Storage(); }
-class CUi *CComponent::Ui() const { return m_pClient->Ui(); }
+class CUI *CComponent::UI() const { return m_pClient->UI(); }
 class ISound *CComponent::Sound() const { return m_pClient->Sound(); }
 class CRenderTools *CComponent::RenderTools() const { return m_pClient->RenderTools(); }
-class IConfigManager *CComponent::ConfigManager() const { return m_pClient->ConfigManager(); }
 class CConfig *CComponent::Config() const { return m_pClient->Config(); }
 class IConsole *CComponent::Console() const { return m_pClient->Console(); }
 class IDemoPlayer *CComponent::DemoPlayer() const { return m_pClient->DemoPlayer(); }
@@ -29,15 +26,6 @@ class IUpdater *CComponent::Updater() const
 }
 #endif
 
-int64_t CComponent::time() const
-{
-#if defined(CONF_VIDEORECORDER)
-	return IVideo::Current() ? IVideo::Time() : time_get();
-#else
-	return time_get();
-#endif
-}
-
 float CComponent::LocalTime() const
 {
 #if defined(CONF_VIDEORECORDER)
@@ -51,5 +39,3 @@ class IClient *CComponent::Client() const
 {
 	return m_pClient->Client();
 }
-
-class IHttp *CComponent::Http() const { return m_pClient->Http(); }

@@ -2,7 +2,7 @@
 
 #include <engine/client/backend_sdl.h>
 
-ERunCommandReturnTypes CCommandProcessorFragment_Null::RunCommand(const CCommandBuffer::SCommand *pBaseCommand)
+bool CCommandProcessorFragment_Null::RunCommand(const CCommandBuffer::SCommand *pBaseCommand)
 {
 	switch(pBaseCommand->m_Cmd)
 	{
@@ -19,7 +19,7 @@ ERunCommandReturnTypes CCommandProcessorFragment_Null::RunCommand(const CCommand
 		Cmd_TextTexture_Update(static_cast<const CCommandBuffer::SCommand_TextTexture_Update *>(pBaseCommand));
 		break;
 	}
-	return ERunCommandReturnTypes::RUN_COMMAND_COMMAND_HANDLED;
+	return true;
 }
 
 bool CCommandProcessorFragment_Null::Cmd_Init(const SCommand_Init *pCommand)

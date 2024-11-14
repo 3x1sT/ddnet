@@ -115,11 +115,11 @@ int main(int argc, const char **argv)
 		return -1;
 	}
 
-	int aImageFlags[MAX_MAPIMAGES] = {
+	int aImageFlags[64] = {
 		0,
 	};
 
-	bool aaImageTiles[MAX_MAPIMAGES][256]{
+	bool aaImageTiles[64][256]{
 		{
 			false,
 		},
@@ -138,16 +138,15 @@ int main(int argc, const char **argv)
 	// add all items
 	for(int Index = 0, i = 0; Index < Reader.NumItems(); Index++)
 	{
-		int Type, Id;
-		CUuid Uuid;
-		void *pPtr = Reader.GetItem(Index, &Type, &Id, &Uuid);
+		int Type, ID;
+		void *pPtr = Reader.GetItem(Index, &Type, &ID);
+		int Size = Reader.GetItemSize(Index);
 
-		// Filter ITEMTYPE_EX items, they will be automatically added again.
+		// filter ITEMTYPE_EX items, they will be automatically added again
 		if(Type == ITEMTYPE_EX)
 		{
 			continue;
 		}
-
 		// for all layers, check if it uses a image and set the corresponding flag
 		if(Type == MAPITEMTYPE_LAYER)
 		{
@@ -155,7 +154,7 @@ int main(int argc, const char **argv)
 			if(pLayer->m_Type == LAYERTYPE_TILES)
 			{
 				CMapItemLayerTilemap *pTLayer = (CMapItemLayerTilemap *)pLayer;
-				if(pTLayer->m_Image >= 0 && pTLayer->m_Image < (int)MAX_MAPIMAGES && pTLayer->m_Flags == 0)
+				if(pTLayer->m_Image >= 0 && pTLayer->m_Image < 64 && pTLayer->m_Flags == 0)
 				{
 					aImageFlags[pTLayer->m_Image] |= 1;
 					// check tiles that are used in this image
@@ -181,7 +180,7 @@ int main(int argc, const char **argv)
 			else if(pLayer->m_Type == LAYERTYPE_QUADS)
 			{
 				CMapItemLayerQuads *pQLayer = (CMapItemLayerQuads *)pLayer;
-				if(pQLayer->m_Image >= 0 && pQLayer->m_Image < (int)MAX_MAPIMAGES)
+				if(pQLayer->m_Image >= 0 && pQLayer->m_Image < 64)
 				{
 					aImageFlags[pQLayer->m_Image] |= 2;
 				}
@@ -189,8 +188,8 @@ int main(int argc, const char **argv)
 		}
 		else if(Type == MAPITEMTYPE_IMAGE)
 		{
-			CMapItemImage_v2 *pImg = (CMapItemImage_v2 *)pPtr;
-			if(!pImg->m_External && pImg->m_Version < CMapItemImage_v2::CURRENT_VERSION)
+			CMapItemImage *pImg = (CMapItemImage *)pPtr;
+			if(!pImg->m_External)
 			{
 				SMapOptimizeItem Item;
 				Item.m_pImage = pImg;
@@ -204,8 +203,7 @@ int main(int argc, const char **argv)
 			++i;
 		}
 
-		int Size = Reader.GetItemSize(Index);
-		Writer.AddItem(Type, Id, Size, pPtr, &Uuid);
+		Writer.AddItem(Type, ID, Size, pPtr);
 	}
 
 	// add all data
@@ -252,7 +250,7 @@ int main(int argc, const char **argv)
 				}
 				else if(aImageFlags[ImageIndex] == 0)
 				{
-					mem_zero(pImgBuff, (size_t)Width * Height * 4);
+					mem_zero(pImgBuff, Width * Height * 4);
 				}
 				else
 				{
@@ -276,12 +274,12 @@ int main(int argc, const char **argv)
 							int ImgTileH = Height / 16;
 							int x = (i % 16) * ImgTileW;
 							int y = (i / 16) * ImgTileH;
-							DilateImageSub(pImgBuff, Width, Height, x, y, ImgTileW, ImgTileH);
+							DilateImageSub(pImgBuff, Width, Height, 4, x, y, ImgTileW, ImgTileH);
 						}
 					}
 					else
 					{
-						DilateImage(pImgBuff, Width, Height);
+						DilateImage(pImgBuff, Width, Height, 4);
 					}
 				}
 			}
@@ -308,7 +306,7 @@ int main(int argc, const char **argv)
 			}
 		}
 
-		Writer.AddData(Size, pPtr, CDataFileWriter::COMPRESSION_BEST);
+		Writer.AddData(Size, pPtr, Z_BEST_COMPRESSION);
 
 		if(DeletePtr)
 			free(pPtr);

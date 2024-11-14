@@ -6,12 +6,15 @@
 #include <engine/graphics.h>
 
 #include <game/client/component.h>
-#include <game/mapitems.h>
 
 enum EMapImageEntityLayerType
 {
-	MAP_IMAGE_ENTITY_LAYER_TYPE_ALL_EXCEPT_SWITCH = 0,
+	MAP_IMAGE_ENTITY_LAYER_TYPE_GAME = 0,
+	MAP_IMAGE_ENTITY_LAYER_TYPE_FRONT,
+	MAP_IMAGE_ENTITY_LAYER_TYPE_SPEEDUP,
 	MAP_IMAGE_ENTITY_LAYER_TYPE_SWITCH,
+	MAP_IMAGE_ENTITY_LAYER_TYPE_TELE,
+	MAP_IMAGE_ENTITY_LAYER_TYPE_TUNE,
 
 	MAP_IMAGE_ENTITY_LAYER_TYPE_COUNT,
 };
@@ -36,11 +39,17 @@ class CMapImages : public CComponent
 	friend class CBackground;
 	friend class CMenuBackground;
 
-	IGraphics::CTextureHandle m_aTextures[MAX_MAPIMAGES];
-	int m_aTextureUsedByTileOrQuadLayerFlag[MAX_MAPIMAGES]; // 0: nothing, 1(as flag): tile layer, 2(as flag): quad layer
+	IGraphics::CTextureHandle m_aTextures[64];
+	int m_aTextureUsedByTileOrQuadLayerFlag[64]; // 0: nothing, 1(as flag): tile layer, 2(as flag): quad layer
 	int m_Count;
 
 	char m_aEntitiesPath[IO_MAX_PATH_LENGTH];
+
+	bool HasFrontLayer(EMapImageModType ModType);
+	bool HasSpeedupLayer(EMapImageModType ModType);
+	bool HasSwitchLayer(EMapImageModType ModType);
+	bool HasTeleLayer(EMapImageModType ModType);
+	bool HasTuneLayer(EMapImageModType ModType);
 
 public:
 	CMapImages();
@@ -64,7 +73,7 @@ public:
 	IGraphics::CTextureHandle GetOverlayCenter();
 
 	void SetTextureScale(int Scale);
-	int GetTextureScale() const;
+	int GetTextureScale();
 
 	void ChangeEntitiesPath(const char *pPath);
 
@@ -76,11 +85,12 @@ private:
 	IGraphics::CTextureHandle m_OverlayBottomTexture;
 	IGraphics::CTextureHandle m_OverlayTopTexture;
 	IGraphics::CTextureHandle m_OverlayCenterTexture;
+	IGraphics::CTextureHandle m_TransparentTexture;
 	int m_TextureScale;
 
 	void InitOverlayTextures();
 	IGraphics::CTextureHandle UploadEntityLayerText(int TextureSize, int MaxWidth, int YOffset);
-	void UpdateEntityLayerText(CImageInfo &TextImage, int TextureSize, int MaxWidth, int YOffset, int NumbersPower, int MaxNumber = -1);
+	void UpdateEntityLayerText(void *pTexBuffer, int ImageColorChannelCount, int TexWidth, int TexHeight, int TextureSize, int MaxWidth, int YOffset, int NumbersPower, int MaxNumber = -1);
 };
 
 #endif

@@ -12,36 +12,35 @@
 #include <game/client/component.h>
 #include <game/client/lineinput.h>
 #include <game/client/skin.h>
-#include <game/generated/protocol7.h>
 
 class CChat : public CComponent
 {
+	CLineInput m_Input;
+
+	static constexpr float CHAT_WIDTH = 200.0f;
 	static constexpr float CHAT_HEIGHT_FULL = 200.0f;
 	static constexpr float CHAT_HEIGHT_MIN = 50.0f;
-	static constexpr float CHAT_FONTSIZE_WIDTH_RATIO = 2.5f;
 
 	enum
 	{
-		MAX_LINES = 64,
-		MAX_LINE_LENGTH = 256
+		MAX_LINES = 25
 	};
 
-	CLineInputBuffered<MAX_LINE_LENGTH> m_Input;
 	struct CLine
 	{
 		int64_t m_Time;
 		float m_aYOffset[2];
-		int m_ClientId;
+		int m_ClientID;
 		int m_TeamNumber;
 		bool m_Team;
 		bool m_Whisper;
 		int m_NameColor;
 		char m_aName[64];
-		char m_aText[MAX_LINE_LENGTH];
+		char m_aText[512];
 		bool m_Friend;
 		bool m_Highlighted;
 
-		STextContainerIndex m_TextContainerIndex;
+		int m_TextContainerIndex;
 		int m_QuadContainerIndex;
 
 		char m_aSkinName[std::size(g_Config.m_ClPlayerSkin)];
@@ -55,20 +54,6 @@ class CChat : public CComponent
 		float m_TextYOffset;
 
 		int m_TimesRepeated;
-
-		class CSixup
-		{
-		public:
-			IGraphics::CTextureHandle m_aTextures[protocol7::NUM_SKINPARTS];
-			IGraphics::CTextureHandle m_HatTexture;
-			IGraphics::CTextureHandle m_BotTexture;
-			int m_HatSpriteIndex;
-			ColorRGBA m_BotColor;
-			ColorRGBA m_aColors[protocol7::NUM_SKINPARTS];
-		};
-
-		// 0.7 Skin
-		CSixup m_Sixup;
 	};
 
 	bool m_PrevScoreBoardShowed;
@@ -77,12 +62,9 @@ class CChat : public CComponent
 	CLine m_aLines[MAX_LINES];
 	int m_CurrentLine;
 
+	// chat
 	enum
 	{
-		// client IDs for special messages
-		CLIENT_MSG = -2,
-		SERVER_MSG = -1,
-
 		MODE_NONE = 0,
 		MODE_ALL,
 		MODE_TEAM,
@@ -95,15 +77,17 @@ class CChat : public CComponent
 
 	int m_Mode;
 	bool m_Show;
+	bool m_InputUpdate;
+	int m_ChatStringOffset;
+	int m_OldChatStringLength;
 	bool m_CompletionUsed;
 	int m_CompletionChosen;
-	char m_aCompletionBuffer[MAX_LINE_LENGTH];
+	char m_aCompletionBuffer[256];
 	int m_PlaceholderOffset;
 	int m_PlaceholderLength;
-	static char ms_aDisplayText[MAX_LINE_LENGTH];
 	struct CRateablePlayer
 	{
-		int ClientId;
+		int ClientID;
 		int Score;
 	};
 	CRateablePlayer m_aPlayerCompletionList[MAX_CLIENTS];
@@ -111,25 +95,22 @@ class CChat : public CComponent
 
 	struct CCommand
 	{
-		char m_aName[IConsole::TEMPCMD_NAME_LENGTH];
-		char m_aParams[IConsole::TEMPCMD_PARAMS_LENGTH];
-		char m_aHelpText[IConsole::TEMPCMD_HELP_LENGTH];
+		const char *m_pName;
+		const char *m_pParams;
 
 		CCommand() = default;
-		CCommand(const char *pName, const char *pParams, const char *pHelpText)
+		CCommand(const char *pName, const char *pParams) :
+			m_pName(pName), m_pParams(pParams)
 		{
-			str_copy(m_aName, pName);
-			str_copy(m_aParams, pParams);
-			str_copy(m_aHelpText, pHelpText);
 		}
 
-		bool operator<(const CCommand &Other) const { return str_comp(m_aName, Other.m_aName) < 0; }
-		bool operator<=(const CCommand &Other) const { return str_comp(m_aName, Other.m_aName) <= 0; }
-		bool operator==(const CCommand &Other) const { return str_comp(m_aName, Other.m_aName) == 0; }
+		bool operator<(const CCommand &Other) const { return str_comp(m_pName, Other.m_pName) < 0; }
+		bool operator<=(const CCommand &Other) const { return str_comp(m_pName, Other.m_pName) <= 0; }
+		bool operator==(const CCommand &Other) const { return str_comp(m_pName, Other.m_pName) == 0; }
 	};
 
 	std::vector<CCommand> m_vCommands;
-	bool m_CommandsNeedSorting;
+	bool m_ReverseTAB;
 
 	struct CHistoryEntry
 	{
@@ -141,11 +122,6 @@ class CChat : public CComponent
 	int m_PendingChatCounter;
 	int64_t m_LastChatSend;
 	int64_t m_aLastSoundPlayed[CHAT_NUM];
-	bool m_IsInputCensored;
-	char m_aCurrentInputText[MAX_LINE_LENGTH];
-	bool m_EditingNewLine;
-
-	bool m_ServerSupportsCommandInfo;
 
 	static void ConSay(IConsole::IResult *pResult, void *pUserData);
 	static void ConSayTeam(IConsole::IResult *pResult, void *pUserData);
@@ -154,8 +130,6 @@ class CChat : public CComponent
 	static void ConEcho(IConsole::IResult *pResult, void *pUserData);
 
 	static void ConchainChatOld(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
-	static void ConchainChatFontSize(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
-	static void ConchainChatWidth(IConsole::IResult *pResult, void *pUserData, IConsole::FCommandCallback pfnCallback, void *pCallbackUserData);
 
 	bool LineShouldHighlight(const char *pLine, const char *pName);
 	void StoreSave(const char *pText);
@@ -164,54 +138,35 @@ public:
 	CChat();
 	int Sizeof() const override { return sizeof(*this); }
 
+	static constexpr float MESSAGE_PADDING_X = 5.0f;
+	static constexpr float MESSAGE_TEE_SIZE = 7.0f;
 	static constexpr float MESSAGE_TEE_PADDING_RIGHT = 0.5f;
+	static constexpr float FONT_SIZE = 6.0f;
+	static constexpr float MESSAGE_PADDING_Y = 1.0f;
+	static constexpr float MESSAGE_ROUNDING = 3.0f;
+	static_assert(FONT_SIZE + MESSAGE_PADDING_Y >= MESSAGE_ROUNDING * 2.0f, "Corners for background chat are too huge for this combination of font size and message padding.");
 
 	bool IsActive() const { return m_Mode != MODE_NONE; }
-	void AddLine(int ClientId, int Team, const char *pLine);
+	void AddLine(int ClientID, int Team, const char *pLine);
 	void EnableMode(int Team);
 	void DisableMode();
-	void RegisterCommand(const char *pName, const char *pParams, const char *pHelpText);
-	void UnregisterCommand(const char *pName);
+	void Say(int Team, const char *pLine);
+	void SayChat(const char *pLine);
+	void RegisterCommand(const char *pName, const char *pParams, int flags, const char *pHelp);
 	void Echo(const char *pString);
 
 	void OnWindowResize() override;
 	void OnConsoleInit() override;
 	void OnStateChange(int NewState, int OldState) override;
-	void OnRefreshSkins() override;
 	void OnRender() override;
-	void OnPrepareLines(float y);
+	void RefindSkins();
+	void OnPrepareLines();
 	void Reset();
 	void OnRelease() override;
 	void OnMessage(int MsgType, void *pRawMsg) override;
-	bool OnInput(const IInput::CEvent &Event) override;
+	bool OnInput(IInput::CEvent Event) override;
 	void OnInit() override;
 
 	void RebuildChat();
-
-	void EnsureCoherentFontSize() const;
-	void EnsureCoherentWidth() const;
-
-	float FontSize() const { return g_Config.m_ClChatFontSize / 10.0f; }
-	float MessagePaddingX() const { return FontSize() * (5 / 6.f); }
-	float MessagePaddingY() const { return FontSize() * (1 / 6.f); }
-	float MessageTeeSize() const { return FontSize() * (7 / 6.f); }
-	float MessageRounding() const { return FontSize() * (1 / 2.f); }
-
-	// ----- send functions -----
-
-	// Sends a chat message to the server.
-	//
-	// @param Team MODE_ALL=0 MODE_TEAM=1
-	// @param pLine the chat message
-	void SendChat(int Team, const char *pLine);
-
-	// Sends a chat message to the server.
-	//
-	// It uses a queue with a maximum of 3 entries
-	// that ensures there is a minimum delay of one second
-	// between sent messages.
-	//
-	// It uses team or public chat depending on m_Mode.
-	void SendChatQueued(const char *pLine);
 };
 #endif

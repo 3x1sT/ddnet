@@ -16,7 +16,7 @@ def generate_cases():
 
 def gen_header(cases):
 	print(f"""\
-#include <cstdint>
+#include <stdint.h>
 
 struct UPPER_LOWER
 {{

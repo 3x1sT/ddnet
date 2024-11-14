@@ -1,3 +1,6 @@
+
+#define _WIN32_WINNT 0x0501
+
 #include <base/logger.h>
 #include <base/system.h>
 
@@ -20,6 +23,7 @@
 #include <vector>
 
 #if defined(CONF_FAMILY_WINDOWS)
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
@@ -43,8 +47,6 @@ void HandleSigIntTerm(int Param)
 
 int main(int argc, const char **argv)
 {
-	const int64_t MainStart = time_get();
-
 	CCmdlineFix CmdlineFix(&argc, &argv);
 	bool Silent = false;
 
@@ -65,19 +67,14 @@ int main(int argc, const char **argv)
 #endif
 
 	std::vector<std::shared_ptr<ILogger>> vpLoggers;
-	std::shared_ptr<ILogger> pStdoutLogger;
 #if defined(CONF_PLATFORM_ANDROID)
-	pStdoutLogger = std::shared_ptr<ILogger>(log_logger_android());
+	vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_android()));
 #else
 	if(!Silent)
 	{
-		pStdoutLogger = std::shared_ptr<ILogger>(log_logger_stdout());
+		vpLoggers.push_back(std::shared_ptr<ILogger>(log_logger_stdout()));
 	}
 #endif
-	if(pStdoutLogger)
-	{
-		vpLoggers.push_back(pStdoutLogger);
-	}
 	std::shared_ptr<CFutureLogger> pFutureFileLogger = std::make_shared<CFutureLogger>();
 	vpLoggers.push_back(pFutureFileLogger);
 	std::shared_ptr<CFutureLogger> pFutureConsoleLogger = std::make_shared<CFutureLogger>();
@@ -88,12 +85,12 @@ int main(int argc, const char **argv)
 
 	if(secure_random_init() != 0)
 	{
-		log_error("secure", "could not initialize secure RNG");
+		dbg_msg("secure", "could not initialize secure RNG");
 		return -1;
 	}
 	if(MysqlInit() != 0)
 	{
-		log_error("mysql", "failed to initialize MySQL library");
+		dbg_msg("mysql", "failed to initialize MySQL library");
 		return -1;
 	}
 
@@ -105,57 +102,61 @@ int main(int argc, const char **argv)
 #endif
 
 	CServer *pServer = CreateServer();
-	pServer->SetLoggers(pFutureFileLogger, std::move(pStdoutLogger));
-
 	IKernel *pKernel = IKernel::Create();
-	pKernel->RegisterInterface(pServer);
 
 	// create the components
-	IEngine *pEngine = CreateEngine(GAME_NAME, pFutureConsoleLogger, 2 * std::thread::hardware_concurrency() + 2);
-	pKernel->RegisterInterface(pEngine);
-
+	IEngine *pEngine = CreateEngine(GAME_NAME, pFutureConsoleLogger, 2);
+	IEngineMap *pEngineMap = CreateEngineMap();
+	IGameServer *pGameServer = CreateGameServer();
+	IConsole *pConsole = CreateConsole(CFGFLAG_SERVER | CFGFLAG_ECON);
 	IStorage *pStorage = CreateStorage(IStorage::STORAGETYPE_SERVER, argc, argv);
-	pKernel->RegisterInterface(pStorage);
+	IConfigManager *pConfigManager = CreateConfigManager();
+	IEngineAntibot *pEngineAntibot = CreateEngineAntibot();
 
 	pFutureAssertionLogger->Set(CreateAssertionLogger(pStorage, GAME_NAME));
-
 #if defined(CONF_EXCEPTION_HANDLING)
 	char aBuf[IO_MAX_PATH_LENGTH];
 	char aBufName[IO_MAX_PATH_LENGTH];
 	char aDate[64];
 	str_timestamp(aDate, sizeof(aDate));
-	str_format(aBufName, sizeof(aBufName), "dumps/" GAME_NAME "-Server_%s_crash_log_%s_%d_%s.RTP", CONF_PLATFORM_STRING, aDate, pid(), GIT_SHORTREV_HASH != nullptr ? GIT_SHORTREV_HASH : "");
+	str_format(aBufName, sizeof(aBufName), "dumps/" GAME_NAME "-Server_crash_log_%d_%s.RTP", pid(), aDate);
 	pStorage->GetCompletePath(IStorage::TYPE_SAVE, aBufName, aBuf, sizeof(aBuf));
 	set_exception_handler_log_file(aBuf);
 #endif
 
-	IConsole *pConsole = CreateConsole(CFGFLAG_SERVER | CFGFLAG_ECON).release();
-	pKernel->RegisterInterface(pConsole);
+	{
+		bool RegisterFail = false;
 
-	IConfigManager *pConfigManager = CreateConfigManager();
-	pKernel->RegisterInterface(pConfigManager);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pServer);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pEngine);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pEngineMap); // register as both
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(static_cast<IMap *>(pEngineMap), false);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pGameServer);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pConsole);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pStorage);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pConfigManager);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(pEngineAntibot);
+		RegisterFail = RegisterFail || !pKernel->RegisterInterface(static_cast<IAntibot *>(pEngineAntibot), false);
 
-	IEngineMap *pEngineMap = CreateEngineMap();
-	pKernel->RegisterInterface(pEngineMap); // IEngineMap
-	pKernel->RegisterInterface(static_cast<IMap *>(pEngineMap), false);
-
-	IEngineAntibot *pEngineAntibot = CreateEngineAntibot();
-	pKernel->RegisterInterface(pEngineAntibot); // IEngineAntibot
-	pKernel->RegisterInterface(static_cast<IAntibot *>(pEngineAntibot), false);
-
-	IGameServer *pGameServer = CreateGameServer();
-	pKernel->RegisterInterface(pGameServer);
+		if(RegisterFail)
+		{
+			delete pKernel;
+			return -1;
+		}
+	}
 
 	pEngine->Init();
-	pConsole->Init();
 	pConfigManager->Init();
+	pConsole->Init();
 
 	// register all console commands
 	pServer->RegisterCommands();
 
 	// execute autoexec file
-	if(pStorage->FileExists(AUTOEXEC_SERVER_FILE, IStorage::TYPE_ALL))
+	IOHANDLE File = pStorage->OpenFile(AUTOEXEC_SERVER_FILE, IOFLAG_READ, IStorage::TYPE_ALL);
+	if(File)
 	{
+		io_close(File);
 		pConsole->ExecuteFile(AUTOEXEC_SERVER_FILE);
 	}
 	else // fallback
@@ -167,42 +168,33 @@ int main(int argc, const char **argv)
 	if(argc > 1)
 		pConsole->ParseArguments(argc - 1, &argv[1]);
 
-	pConfigManager->SetReadOnly("sv_max_clients", true);
-	pConfigManager->SetReadOnly("sv_test_cmds", true);
-	pConfigManager->SetReadOnly("sv_rescue", true);
+	pConsole->Register("sv_test_cmds", "", CFGFLAG_SERVER, CServer::ConTestingCommands, pConsole, "Turns testing commands aka cheats on/off (setting only works in initial config)");
+	pConsole->Register("sv_rescue", "", CFGFLAG_SERVER, CServer::ConRescue, pConsole, "Allow /rescue command so players can teleport themselves out of freeze (setting only works in initial config)");
 
+	log_set_loglevel((LEVEL)g_Config.m_Loglevel);
 	if(g_Config.m_Logfile[0])
 	{
-		const int Mode = g_Config.m_Logappend ? IOFLAG_APPEND : IOFLAG_WRITE;
-		IOHANDLE Logfile = pStorage->OpenFile(g_Config.m_Logfile, Mode, IStorage::TYPE_SAVE_OR_ABSOLUTE);
+		IOHANDLE Logfile = io_open(g_Config.m_Logfile, IOFLAG_WRITE);
 		if(Logfile)
 		{
 			pFutureFileLogger->Set(log_logger_file(Logfile));
 		}
 		else
 		{
-			log_error("server", "failed to open '%s' for logging", g_Config.m_Logfile);
-			pFutureFileLogger->Set(log_logger_noop());
+			dbg_msg("client", "failed to open '%s' for logging", g_Config.m_Logfile);
 		}
 	}
-	else
-	{
-		pFutureFileLogger->Set(log_logger_noop());
-	}
-
-	auto pServerLogger = std::make_shared<CServerLogger>(pServer);
-	pEngine->SetAdditionalLogger(pServerLogger);
+	pEngine->SetAdditionalLogger(std::make_unique<CServerLogger>(pServer));
 
 	// run the server
-	log_trace("server", "initialization finished after %.2fms, starting...", (time_get() - MainStart) * 1000.0f / (float)time_freq());
+	dbg_msg("server", "starting...");
 	int Ret = pServer->Run();
-
-	pServerLogger->OnServerDeletion();
-	// free
-	delete pKernel;
 
 	MysqlUninit();
 	secure_random_uninit();
+
+	// free
+	delete pKernel;
 
 	return Ret;
 }

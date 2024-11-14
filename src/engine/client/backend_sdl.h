@@ -5,18 +5,14 @@
 
 #include <base/detect.h>
 
-#include <engine/graphics.h>
-
-#include <engine/client/graphics_threaded.h>
-
-#include <engine/client/backend/backend_base.h>
+#include "engine/graphics.h"
+#include "graphics_threaded.h"
 
 #include <atomic>
 #include <condition_variable>
-#include <cstddef>
-#include <cstdint>
 #include <mutex>
-#include <vector>
+#include <stddef.h>
+#include <stdint.h>
 
 #if defined(CONF_PLATFORM_MACOS)
 #include <objc/objc-runtime.h>
@@ -46,41 +42,25 @@ public:
 // basic threaded backend, abstract, missing init and shutdown functions
 class CGraphicsBackend_Threaded : public IGraphicsBackend
 {
-private:
-	TTranslateFunc m_TranslateFunc;
-	SGfxWarningContainer m_Warning;
-
 public:
 	// constructed on the main thread, the rest of the functions is run on the render thread
 	class ICommandProcessor
 	{
 	public:
-		virtual ~ICommandProcessor() = default;
+		virtual ~ICommandProcessor() {}
 		virtual void RunBuffer(CCommandBuffer *pBuffer) = 0;
-
-		virtual const SGfxErrorContainer &GetError() const = 0;
-		virtual void ErroneousCleanup() = 0;
-
-		virtual const SGfxWarningContainer &GetWarning() const = 0;
 	};
 
-	CGraphicsBackend_Threaded(TTranslateFunc &&TranslateFunc);
+	CGraphicsBackend_Threaded();
 
 	void RunBuffer(CCommandBuffer *pBuffer) override;
 	void RunBufferSingleThreadedUnsafe(CCommandBuffer *pBuffer) override;
 	bool IsIdle() const override;
 	void WaitForIdle() override;
 
-	void ProcessError(const SGfxErrorContainer &Error);
-
 protected:
 	void StartProcessor(ICommandProcessor *pProcessor);
 	void StopProcessor();
-
-	bool HasWarning()
-	{
-		return m_Warning.m_WarningType != GFX_WARNING_TYPE_NONE;
-	}
 
 private:
 	ICommandProcessor *m_pProcessor;
@@ -93,9 +73,6 @@ private:
 	void *m_pThread;
 
 	static void ThreadFunc(void *pUser);
-
-public:
-	bool GetWarning(std::vector<std::string> &WarningStrings) override;
 };
 
 // takes care of implementation independent operations
@@ -134,8 +111,8 @@ struct SBackendCapabilites
 class CCommandProcessorFragment_SDL
 {
 	// SDL stuff
-	SDL_Window *m_pWindow = nullptr;
-	SDL_GLContext m_GLContext = nullptr;
+	SDL_Window *m_pWindow;
+	SDL_GLContext m_GLContext;
 
 public:
 	enum
@@ -172,46 +149,35 @@ public:
 	bool RunCommand(const CCommandBuffer::SCommand *pBaseCommand);
 };
 
-// command processor implementation, uses the fragments to combine into one processor
+// command processor impelementation, uses the fragments to combine into one processor
 class CCommandProcessor_SDL_GL : public CGraphicsBackend_Threaded::ICommandProcessor
 {
-	CCommandProcessorFragment_GLBase *m_pGLBackend;
+	class CCommandProcessorFragment_GLBase *m_pGLBackend;
 	CCommandProcessorFragment_SDL m_SDL;
 	CCommandProcessorFragment_General m_General;
 
 	EBackendType m_BackendType;
 
-	SGfxErrorContainer m_Error;
-	SGfxWarningContainer m_Warning;
-
 public:
 	CCommandProcessor_SDL_GL(EBackendType BackendType, int GLMajor, int GLMinor, int GLPatch);
 	virtual ~CCommandProcessor_SDL_GL();
 	void RunBuffer(CCommandBuffer *pBuffer) override;
-
-	const SGfxErrorContainer &GetError() const override;
-	void ErroneousCleanup() override;
-
-	const SGfxWarningContainer &GetWarning() const override;
-
-	void HandleError();
-	void HandleWarning();
 };
 
-static constexpr size_t gs_GpuInfoStringSize = 256;
+static constexpr size_t gs_GPUInfoStringSize = 256;
 
 // graphics backend implemented with SDL and the graphics library @see EBackendType
 class CGraphicsBackend_SDL_GL : public CGraphicsBackend_Threaded
 {
-	SDL_Window *m_pWindow = nullptr;
-	SDL_GLContext m_GLContext = nullptr;
+	SDL_Window *m_pWindow = NULL;
+	SDL_GLContext m_GLContext;
 	ICommandProcessor *m_pProcessor = nullptr;
 	std::atomic<uint64_t> m_TextureMemoryUsage{0};
 	std::atomic<uint64_t> m_BufferMemoryUsage{0};
 	std::atomic<uint64_t> m_StreamMemoryUsage{0};
 	std::atomic<uint64_t> m_StagingMemoryUsage{0};
 
-	TTwGraphicsGpuList m_GpuList;
+	TTWGraphicsGPUList m_GPUList;
 
 	TGLBackendReadPresentedImageData m_ReadPresentedImageDataFunc;
 
@@ -219,9 +185,9 @@ class CGraphicsBackend_SDL_GL : public CGraphicsBackend_Threaded
 
 	SBackendCapabilites m_Capabilites;
 
-	char m_aVendorString[gs_GpuInfoStringSize] = {};
-	char m_aVersionString[gs_GpuInfoStringSize] = {};
-	char m_aRendererString[gs_GpuInfoStringSize] = {};
+	char m_aVendorString[gs_GPUInfoStringSize] = {};
+	char m_aVersionString[gs_GPUInfoStringSize] = {};
+	char m_aRendererString[gs_GPUInfoStringSize] = {};
 
 	EBackendType m_BackendType = BACKEND_TYPE_AUTO;
 
@@ -231,7 +197,7 @@ class CGraphicsBackend_SDL_GL : public CGraphicsBackend_Threaded
 	static void ClampDriverVersion(EBackendType BackendType);
 
 public:
-	CGraphicsBackend_SDL_GL(TTranslateFunc &&TranslateFunc);
+	CGraphicsBackend_SDL_GL();
 	int Init(const char *pName, int *pScreen, int *pWidth, int *pHeight, int *pRefreshRate, int *pFsaaSamples, int Flags, int *pDesktopWidth, int *pDesktopHeight, int *pCurrentWidth, int *pCurrentHeight, class IStorage *pStorage) override;
 	int Shutdown() override;
 
@@ -240,17 +206,16 @@ public:
 	uint64_t StreamedMemoryUsage() const override;
 	uint64_t StagingMemoryUsage() const override;
 
-	const TTwGraphicsGpuList &GetGpus() const override;
+	const TTWGraphicsGPUList &GetGPUs() const override;
 
 	int GetNumScreens() const override { return m_NumScreens; }
-	const char *GetScreenName(int Screen) const override;
 
-	void GetVideoModes(CVideoMode *pModes, int MaxModes, int *pNumModes, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId) override;
-	void GetCurrentVideoMode(CVideoMode &CurMode, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenId) override;
+	void GetVideoModes(CVideoMode *pModes, int MaxModes, int *pNumModes, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenID) override;
+	void GetCurrentVideoMode(CVideoMode &CurMode, int HiDPIScale, int MaxWindowWidth, int MaxWindowHeight, int ScreenID) override;
 
 	void Minimize() override;
 	void Maximize() override;
-	void SetWindowParams(int FullscreenMode, bool IsBorderless) override;
+	void SetWindowParams(int FullscreenMode, bool IsBorderless, bool AllowResizing) override;
 	bool SetWindowScreen(int Index) override;
 	bool UpdateDisplayMode(int Index) override;
 	int GetWindowScreen() override;
@@ -261,8 +226,8 @@ public:
 	void GetViewportSize(int &w, int &h) override;
 	void NotifyWindow() override;
 
-	void WindowDestroyNtf(uint32_t WindowId) override;
-	void WindowCreateNtf(uint32_t WindowId) override;
+	void WindowDestroyNtf(uint32_t WindowID) override;
+	void WindowCreateNtf(uint32_t WindowID) override;
 
 	bool GetDriverVersion(EGraphicsDriverAgeType DriverAgeType, int &Major, int &Minor, int &Patch, const char *&pName, EBackendType BackendType) override;
 	bool IsConfigModernAPI() override { return IsModernAPI(m_BackendType); }
@@ -271,8 +236,7 @@ public:
 	bool HasQuadBuffering() override { return m_Capabilites.m_QuadBuffering; }
 	bool HasTextBuffering() override { return m_Capabilites.m_TextBuffering; }
 	bool HasQuadContainerBuffering() override { return m_Capabilites.m_QuadContainerBuffering; }
-	bool Uses2DTextureArrays() override { return m_Capabilites.m_2DArrayTextures; }
-	bool HasTextureArraysSupport() override { return m_Capabilites.m_2DArrayTextures || m_Capabilites.m_3DTextures; }
+	bool Has2DTextureArrays() override { return m_Capabilites.m_2DArrayTextures; }
 
 	const char *GetErrorString() override
 	{
@@ -298,8 +262,6 @@ public:
 	}
 
 	TGLBackendReadPresentedImageData &GetReadPresentedImageDataFuncUnsafe() override;
-
-	bool ShowMessageBox(unsigned Type, const char *pTitle, const char *pMsg) override;
 
 	static bool IsModernAPI(EBackendType BackendType);
 };

@@ -2,7 +2,6 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_COMPONENTS_PARTICLES_H
 #define GAME_CLIENT_COMPONENTS_PARTICLES_H
-#include <base/color.h>
 #include <base/vmath.h>
 #include <game/client/component.h>
 
@@ -11,7 +10,6 @@ struct CParticle
 {
 	void SetDefault()
 	{
-		m_Pos = vec2(0, 0);
 		m_Vel = vec2(0, 0);
 		m_LifeSpan = 0;
 		m_StartSize = 32;
@@ -95,9 +93,6 @@ private:
 	CParticle m_aParticles[MAX_PARTICLES];
 	int m_FirstFree;
 	int m_aFirstPart[NUM_GROUPS];
-
-	float m_FrictionFraction = 0.0f;
-	int64_t m_LastRenderTime = 0;
 
 	void RenderGroup(int Group);
 	void Update(float TimePassed);

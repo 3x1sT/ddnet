@@ -17,14 +17,14 @@ struct SLibPNGWarningItem
 {
 	SLibPNGWarningItem *pUserStruct = (SLibPNGWarningItem *)png_get_error_ptr(png_ptr);
 	pUserStruct->m_pByteLoader->m_Err = -1;
-	dbg_msg("png", "error for file \"%s\": %s", pUserStruct->m_pFileName, error_msg);
+	dbg_msg("libpng", "error for file \"%s\": %s", pUserStruct->m_pFileName, error_msg);
 	std::longjmp(pUserStruct->m_Buf, 1);
 }
 
 static void LibPNGWarning(png_structp png_ptr, png_const_charp warning_msg)
 {
 	SLibPNGWarningItem *pUserStruct = (SLibPNGWarningItem *)png_get_error_ptr(png_ptr);
-	dbg_msg("png", "warning for file \"%s\": %s", pUserStruct->m_pFileName, warning_msg);
+	dbg_msg("libpng", "warning for file \"%s\": %s", pUserStruct->m_pFileName, warning_msg);
 }
 
 static bool FileMatchesImageType(SImageByteBuffer &ByteLoader)
@@ -53,29 +53,34 @@ static void ReadDataFromLoadedBytes(png_structp pPNGStruct, png_bytep pOutBytes,
 	}
 }
 
-static EImageFormat LibPNGGetImageFormat(int ColorChannelCount)
+static int LibPNGGetColorChannelCount(int LibPNGColorType)
 {
-	switch(ColorChannelCount)
-	{
-	case 1:
-		return IMAGE_FORMAT_R;
-	case 2:
-		return IMAGE_FORMAT_RA;
-	case 3:
-		return IMAGE_FORMAT_RGB;
-	case 4:
-		return IMAGE_FORMAT_RGBA;
-	default:
-		dbg_assert(false, "ColorChannelCount invalid");
-		dbg_break();
-	}
+	if(LibPNGColorType == PNG_COLOR_TYPE_GRAY)
+		return 1;
+	else if(LibPNGColorType == PNG_COLOR_TYPE_PALETTE || LibPNGColorType == PNG_COLOR_TYPE_RGB)
+		return 3;
+	else if(LibPNGColorType == PNG_COLOR_TYPE_RGBA)
+		return 4;
+
+	return 4;
+}
+
+static void LibPNGSetImageFormat(EImageFormat &ImageFormat, int LibPNGColorType)
+{
+	ImageFormat = IMAGE_FORMAT_RGBA;
+	if(LibPNGColorType == PNG_COLOR_TYPE_GRAY)
+		ImageFormat = IMAGE_FORMAT_R;
+	else if(LibPNGColorType == PNG_COLOR_TYPE_PALETTE || LibPNGColorType == PNG_COLOR_TYPE_RGB)
+		ImageFormat = IMAGE_FORMAT_RGB;
+	else if(LibPNGColorType == PNG_COLOR_TYPE_RGBA)
+		ImageFormat = IMAGE_FORMAT_RGBA;
 }
 
 static void LibPNGDeleteReadStruct(png_structp pPNGStruct, png_infop pPNGInfo)
 {
 	if(pPNGInfo != nullptr)
 		png_destroy_info_struct(pPNGStruct, &pPNGInfo);
-	png_destroy_read_struct(&pPNGStruct, nullptr, nullptr);
+	png_destroy_read_struct(&pPNGStruct, NULL, NULL);
 }
 
 static int PngliteIncompatibility(png_structp pPNGStruct, png_infop pPNGInfo)
@@ -124,26 +129,30 @@ static int PngliteIncompatibility(png_structp pPNGStruct, png_infop pPNGInfo)
 	return Result;
 }
 
-bool LoadPng(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIncompatible, size_t &Width, size_t &Height, uint8_t *&pImageBuff, EImageFormat &ImageFormat)
+bool LoadPNG(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIncompatible, int &Width, int &Height, uint8_t *&pImageBuff, EImageFormat &ImageFormat)
 {
+	png_infop pPNGInfo = nullptr;
+	int ColorType;
+	png_byte BitDepth;
+	int ColorChannelCount;
+	int BytesInRow;
+	Height = 0;
+	png_bytepp pRowPointers = nullptr;
 	SLibPNGWarningItem UserErrorStruct = {&ByteLoader, pFileName, {}};
 
-	png_structp pPNGStruct = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+	png_structp pPNGStruct = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 
-	if(pPNGStruct == nullptr)
+	if(pPNGStruct == NULL)
 	{
 		dbg_msg("png", "libpng internal failure: png_create_read_struct failed.");
 		return false;
 	}
 
-	png_infop pPNGInfo = nullptr;
-	png_bytepp pRowPointers = nullptr;
-	Height = 0; // ensure this is not undefined for the error handler
 	if(setjmp(UserErrorStruct.m_Buf))
 	{
 		if(pRowPointers != nullptr)
 		{
-			for(size_t i = 0; i < Height; ++i)
+			for(int i = 0; i < Height; ++i)
 			{
 				delete[] pRowPointers[i];
 			}
@@ -156,9 +165,9 @@ bool LoadPng(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIn
 
 	pPNGInfo = png_create_info_struct(pPNGStruct);
 
-	if(pPNGInfo == nullptr)
+	if(pPNGInfo == NULL)
 	{
-		png_destroy_read_struct(&pPNGStruct, nullptr, nullptr);
+		png_destroy_read_struct(&pPNGStruct, NULL, NULL);
 		dbg_msg("png", "libpng internal failure: png_create_info_struct failed.");
 		return false;
 	}
@@ -166,7 +175,6 @@ bool LoadPng(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIn
 	if(!FileMatchesImageType(ByteLoader))
 	{
 		LibPNGDeleteReadStruct(pPNGStruct, pPNGInfo);
-		dbg_msg("png", "file does not match image type.");
 		return false;
 	}
 
@@ -181,14 +189,13 @@ bool LoadPng(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIn
 	if(ByteLoader.m_Err != 0)
 	{
 		LibPNGDeleteReadStruct(pPNGStruct, pPNGInfo);
-		dbg_msg("png", "byte loader error.");
 		return false;
 	}
 
 	Width = png_get_image_width(pPNGStruct, pPNGInfo);
 	Height = png_get_image_height(pPNGStruct, pPNGInfo);
-	const int ColorType = png_get_color_type(pPNGStruct, pPNGInfo);
-	const png_byte BitDepth = png_get_bit_depth(pPNGStruct, pPNGInfo);
+	ColorType = png_get_color_type(pPNGStruct, pPNGInfo);
+	BitDepth = png_get_bit_depth(pPNGStruct, pPNGInfo);
 	PngliteIncompatible = PngliteIncompatibility(pPNGStruct, pPNGInfo);
 
 	if(BitDepth == 16)
@@ -220,41 +227,47 @@ bool LoadPng(SImageByteBuffer &ByteLoader, const char *pFileName, int &PngliteIn
 
 	png_read_update_info(pPNGStruct, pPNGInfo);
 
-	const size_t ColorChannelCount = png_get_channels(pPNGStruct, pPNGInfo);
-	const size_t BytesInRow = png_get_rowbytes(pPNGStruct, pPNGInfo);
-	dbg_assert(BytesInRow == Width * ColorChannelCount, "bytes in row incorrect.");
+	ColorChannelCount = LibPNGGetColorChannelCount(ColorType);
+	BytesInRow = png_get_rowbytes(pPNGStruct, pPNGInfo);
 
-	pRowPointers = new png_bytep[Height];
-	for(size_t y = 0; y < Height; ++y)
+	if(BytesInRow == Width * ColorChannelCount)
 	{
-		pRowPointers[y] = new png_byte[BytesInRow];
-	}
+		pRowPointers = new png_bytep[Height];
+		for(int y = 0; y < Height; ++y)
+		{
+			pRowPointers[y] = new png_byte[BytesInRow];
+		}
 
-	png_read_image(pPNGStruct, pRowPointers);
+		png_read_image(pPNGStruct, pRowPointers);
 
-	if(ByteLoader.m_Err == 0)
-		pImageBuff = (uint8_t *)malloc(Height * Width * ColorChannelCount * sizeof(uint8_t));
-
-	for(size_t i = 0; i < Height; ++i)
-	{
 		if(ByteLoader.m_Err == 0)
-			mem_copy(&pImageBuff[i * BytesInRow], pRowPointers[i], BytesInRow);
-		delete[] pRowPointers[i];
-	}
-	delete[] pRowPointers;
-	pRowPointers = nullptr;
+			pImageBuff = (uint8_t *)malloc((size_t)Height * (size_t)Width * (size_t)ColorChannelCount * sizeof(uint8_t));
 
-	if(ByteLoader.m_Err != 0)
+		for(int i = 0; i < Height; ++i)
+		{
+			if(ByteLoader.m_Err == 0)
+				mem_copy(&pImageBuff[i * BytesInRow], pRowPointers[i], BytesInRow);
+			delete[] pRowPointers[i];
+		}
+		delete[] pRowPointers;
+		pRowPointers = nullptr;
+
+		if(ByteLoader.m_Err != 0)
+		{
+			LibPNGDeleteReadStruct(pPNGStruct, pPNGInfo);
+			return false;
+		}
+
+		LibPNGSetImageFormat(ImageFormat, ColorType);
+	}
+	else
 	{
 		LibPNGDeleteReadStruct(pPNGStruct, pPNGInfo);
-		dbg_msg("png", "byte loader error.");
 		return false;
 	}
 
-	ImageFormat = LibPNGGetImageFormat(ColorChannelCount);
-
 	png_destroy_info_struct(pPNGStruct, &pPNGInfo);
-	png_destroy_read_struct(&pPNGStruct, nullptr, nullptr);
+	png_destroy_read_struct(&pPNGStruct, NULL, NULL);
 
 	return true;
 }
@@ -277,29 +290,23 @@ static void WriteDataFromLoadedBytes(png_structp pPNGStruct, png_bytep pOutBytes
 
 static void FlushPNGWrite(png_structp png_ptr) {}
 
-static size_t ImageLoaderHelperFormatToColorChannel(EImageFormat Format)
+static int ImageLoaderHelperFormatToColorChannel(EImageFormat Format)
 {
-	switch(Format)
-	{
-	case IMAGE_FORMAT_R:
+	if(Format == IMAGE_FORMAT_R)
 		return 1;
-	case IMAGE_FORMAT_RA:
-		return 2;
-	case IMAGE_FORMAT_RGB:
+	else if(Format == IMAGE_FORMAT_RGB)
 		return 3;
-	case IMAGE_FORMAT_RGBA:
+	else if(Format == IMAGE_FORMAT_RGBA)
 		return 4;
-	default:
-		dbg_assert(false, "Format invalid");
-		dbg_break();
-	}
+
+	return 4;
 }
 
-bool SavePng(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuffer &WrittenBytes, size_t Width, size_t Height)
+bool SavePNG(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuffer &WrittenBytes, int Width, int Height)
 {
-	png_structp pPNGStruct = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+	png_structp pPNGStruct = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 
-	if(pPNGStruct == nullptr)
+	if(pPNGStruct == NULL)
 	{
 		dbg_msg("png", "libpng internal failure: png_create_write_struct failed.");
 		return false;
@@ -307,9 +314,9 @@ bool SavePng(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuff
 
 	png_infop pPNGInfo = png_create_info_struct(pPNGStruct);
 
-	if(pPNGInfo == nullptr)
+	if(pPNGInfo == NULL)
 	{
-		png_destroy_read_struct(&pPNGStruct, nullptr, nullptr);
+		png_destroy_read_struct(&pPNGStruct, NULL, NULL);
 		dbg_msg("png", "libpng internal failure: png_create_info_struct failed.");
 		return false;
 	}
@@ -320,7 +327,7 @@ bool SavePng(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuff
 	png_set_write_fn(pPNGStruct, (png_bytep)&WrittenBytes, WriteDataFromLoadedBytes, FlushPNGWrite);
 
 	int ColorType = PNG_COLOR_TYPE_RGB;
-	size_t WriteBytesPerPixel = ImageLoaderHelperFormatToColorChannel(ImageFormat);
+	int WriteBytesPerPixel = ImageLoaderHelperFormatToColorChannel(ImageFormat);
 	if(ImageFormat == IMAGE_FORMAT_R)
 	{
 		ColorType = PNG_COLOR_TYPE_GRAY;
@@ -335,9 +342,9 @@ bool SavePng(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuff
 	png_write_info(pPNGStruct, pPNGInfo);
 
 	png_bytepp pRowPointers = new png_bytep[Height];
-	size_t WidthBytes = Width * WriteBytesPerPixel;
+	int WidthBytes = Width * WriteBytesPerPixel;
 	ptrdiff_t BufferOffset = 0;
-	for(size_t y = 0; y < Height; ++y)
+	for(int y = 0; y < Height; ++y)
 	{
 		pRowPointers[y] = new png_byte[WidthBytes];
 		mem_copy(pRowPointers[y], pRawBuffer + BufferOffset, WidthBytes);
@@ -347,14 +354,14 @@ bool SavePng(EImageFormat ImageFormat, const uint8_t *pRawBuffer, SImageByteBuff
 
 	png_write_end(pPNGStruct, pPNGInfo);
 
-	for(size_t y = 0; y < Height; ++y)
+	for(int y = 0; y < Height; ++y)
 	{
 		delete[](pRowPointers[y]);
 	}
 	delete[](pRowPointers);
 
 	png_destroy_info_struct(pPNGStruct, &pPNGInfo);
-	png_destroy_write_struct(&pPNGStruct, nullptr);
+	png_destroy_write_struct(&pPNGStruct, NULL);
 
 	return true;
 }

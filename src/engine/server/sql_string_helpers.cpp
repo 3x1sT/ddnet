@@ -48,7 +48,7 @@ void sqlstr::AgoTimeToString(int AgoTime, char *pAgoString, int Size)
 	}
 
 	char aBuf[20];
-	const int aTimes[7] =
+	int aTimes[7] =
 		{
 			60 * 60 * 24 * 365,
 			60 * 60 * 24 * 30,
@@ -57,7 +57,7 @@ void sqlstr::AgoTimeToString(int AgoTime, char *pAgoString, int Size)
 			60 * 60,
 			60,
 			1};
-	const char aaNames[7][6] =
+	char aaNames[7][6] =
 		{
 			"year",
 			"month",

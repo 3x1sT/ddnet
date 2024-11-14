@@ -7,7 +7,6 @@
 
 struct CNetObj_Laser;
 struct CNetObj_DDNetLaser;
-struct CNetObj_EntityEx;
 
 class CLaserData
 {
@@ -19,14 +18,11 @@ public:
 	// The rest is only set if m_ExtraInfo is true.
 	int m_Owner;
 	int m_Type;
-	int m_SwitchNumber;
-	int m_Subtype;
-	bool m_Predict;
 	// TuneZone is introduced locally
 	int m_TuneZone;
 };
 
-CLaserData ExtractLaserInfo(int NetObjType, const void *pData, class CGameWorld *pGameWorld, const CNetObj_EntityEx *pEntEx);
+CLaserData ExtractLaserInfo(const CNetObj_Laser *pLaser, class CGameWorld *pGameWorld);
 CLaserData ExtractLaserInfoDDNet(const CNetObj_DDNetLaser *pLaser, class CGameWorld *pGameWorld);
 
 #endif // GAME_CLIENT_LASER_DATA_H

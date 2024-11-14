@@ -49,7 +49,7 @@ protected:
 	/**
 	 * Get the ui interface.
 	 */
-	class CUi *Ui() const;
+	class CUI *UI() const;
 	/**
 	 * Get the sound interface.
 	 */
@@ -58,10 +58,6 @@ protected:
 	 * Get the render tools interface.
 	 */
 	class CRenderTools *RenderTools() const;
-	/**
-	 * Get the config manager interface.
-	 */
-	class IConfigManager *ConfigManager() const;
 	/**
 	 * Get the config interface.
 	 */
@@ -104,21 +100,29 @@ protected:
 	class IUpdater *Updater() const;
 #endif
 
+#if defined(CONF_VIDEORECORDER)
 	/**
 	 * Gets the current time.
 	 * @see time_get()
 	 */
-	int64_t time() const;
-
+	int64_t time() const
+	{
+		return IVideo::Current() ? IVideo::Time() : time_get();
+	}
+#else
+	/**
+	 * Gets the current time.
+	 * @see time_get()
+	 */
+	int64_t time() const
+	{
+		return time_get();
+	}
+#endif
 	/**
 	 * Gets the local time.
 	 */
 	float LocalTime() const;
-
-	/**
-	 * Get the http interface
-	 */
-	class IHttp *Http() const;
 
 public:
 	/**
@@ -170,19 +174,11 @@ public:
 	 */
 	virtual void OnWindowResize() {}
 	/**
-	 * Called when skins have been invalidated and must be updated.
-	 */
-	virtual void OnRefreshSkins() {}
-	/**
 	 * Called when the component should get rendered.
 	 *
 	 * The render order depends on the component insertion order.
 	 */
 	virtual void OnRender(){};
-	/**
-	 * Called when a new snapshot is received.
-	 */
-	virtual void OnNewSnapshot(){};
 	/**
 	 * Called when the input gets released, for example when a text box loses focus.
 	 */
@@ -209,9 +205,9 @@ public:
 	virtual bool OnCursorMove(float x, float y, IInput::ECursorType CursorType) { return false; }
 	/**
 	 * Called on a input event.
-	 * @param Event The input event.
+	 * @param e The input event.
 	 */
-	virtual bool OnInput(const IInput::CEvent &Event) { return false; }
+	virtual bool OnInput(IInput::CEvent e) { return false; }
 };
 
 #endif

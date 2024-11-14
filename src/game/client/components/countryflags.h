@@ -3,7 +3,6 @@
 #ifndef GAME_CLIENT_COMPONENTS_COUNTRYFLAGS_H
 #define GAME_CLIENT_COMPONENTS_COUNTRYFLAGS_H
 
-#include <engine/graphics.h>
 #include <game/client/component.h>
 #include <vector>
 
@@ -25,8 +24,7 @@ public:
 	size_t Num() const;
 	const CCountryFlag *GetByCountryCode(int CountryCode) const;
 	const CCountryFlag *GetByIndex(size_t Index) const;
-	void Render(const CCountryFlag *pFlag, ColorRGBA Color, float x, float y, float w, float h);
-	void Render(int CountryCode, ColorRGBA Color, float x, float y, float w, float h);
+	void Render(int CountryCode, const ColorRGBA *pColor, float x, float y, float w, float h);
 
 private:
 	enum

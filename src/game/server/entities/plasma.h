@@ -25,7 +25,7 @@ class CPlasma : public CEntity
 	vec2 m_Core;
 	int m_Freeze;
 	bool m_Explosive;
-	int m_ForClientId;
+	int m_ForClientID;
 	int m_EvalTick;
 	int m_LifeTime;
 
@@ -40,7 +40,6 @@ public:
 	void Reset() override;
 	void Tick() override;
 	void Snap(int SnappingClient) override;
-	void SwapClients(int Client1, int Client2) override;
 };
 
 #endif // GAME_SERVER_ENTITIES_PLASMA_H

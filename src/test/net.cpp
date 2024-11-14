@@ -44,7 +44,4 @@ TEST(Net, Ipv4AndIpv6Work)
 	Addr.port = 0;
 	EXPECT_EQ(Addr, LocalhostV6);
 	EXPECT_EQ(mem_comp(pData, "def", 3), 0);
-
-	net_udp_close(Socket1);
-	net_udp_close(Socket2);
 }

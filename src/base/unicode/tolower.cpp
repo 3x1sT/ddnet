@@ -9,6 +9,7 @@ static int compul(const void *a, const void *b)
 	return ul_a->upper - ul_b->upper;
 }
 
+extern "C" {
 int str_utf8_tolower(int code)
 {
 	struct UPPER_LOWER key;
@@ -19,6 +20,7 @@ int str_utf8_tolower(int code)
 	if(res == NULL)
 		return code;
 	return res->lower;
+}
 }
 
 #define TOLOWER_DATA

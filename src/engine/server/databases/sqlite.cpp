@@ -11,8 +11,10 @@ class CSqliteConnection : public IDbConnection
 {
 public:
 	CSqliteConnection(const char *pFilename, bool Setup);
-	~CSqliteConnection() override;
+	virtual ~CSqliteConnection();
 	void Print(IConsole *pConsole, const char *pMode) override;
+
+	CSqliteConnection *Copy() override;
 
 	const char *BinaryCollate() const override { return "BINARY"; }
 	void ToUnixTimestamp(const char *pTimestamp, char *aBuf, unsigned int BufferSize) override;
@@ -52,9 +54,6 @@ public:
 
 	bool AddPoints(const char *pPlayer, int Points, char *pError, int ErrorSize) override;
 
-	// fail safe
-	bool CreateFailsafeTables();
-
 private:
 	// copy of config vars
 	char m_aFilename[IO_MAX_PATH_LENGTH];
@@ -65,8 +64,6 @@ private:
 	bool m_Done; // no more rows available for Step
 	// returns false, if the query succeeded
 	bool Execute(const char *pQuery, char *pError, int ErrorSize);
-	// returns true on failure
-	bool ConnectImpl(char *pError, int ErrorSize);
 
 	// returns true if an error was formatted
 	bool FormatError(int Result, char *pError, int ErrorSize);
@@ -108,22 +105,18 @@ void CSqliteConnection::ToUnixTimestamp(const char *pTimestamp, char *aBuf, unsi
 	str_format(aBuf, BufferSize, "strftime('%%s', %s)", pTimestamp);
 }
 
+CSqliteConnection *CSqliteConnection::Copy()
+{
+	return new CSqliteConnection(m_aFilename, m_Setup);
+}
+
 bool CSqliteConnection::Connect(char *pError, int ErrorSize)
 {
 	if(m_InUse.exchange(true))
 	{
-		dbg_assert(false, "Tried connecting while the connection is in use");
+		dbg_assert(0, "Tried connecting while the connection is in use");
 	}
-	if(ConnectImpl(pError, ErrorSize))
-	{
-		m_InUse.store(false);
-		return true;
-	}
-	return false;
-}
 
-bool CSqliteConnection::ConnectImpl(char *pError, int ErrorSize)
-{
 	if(m_pDb != nullptr)
 	{
 		return false;
@@ -146,32 +139,20 @@ bool CSqliteConnection::ConnectImpl(char *pError, int ErrorSize)
 
 	if(m_Setup)
 	{
-		if(Execute("PRAGMA journal_mode=WAL", pError, ErrorSize))
-			return true;
 		char aBuf[1024];
-		FormatCreateRace(aBuf, sizeof(aBuf), /* Backup */ false);
+		FormatCreateRace(aBuf, sizeof(aBuf));
 		if(Execute(aBuf, pError, ErrorSize))
 			return true;
-		FormatCreateTeamrace(aBuf, sizeof(aBuf), "BLOB", /* Backup */ false);
+		FormatCreateTeamrace(aBuf, sizeof(aBuf), "BLOB");
 		if(Execute(aBuf, pError, ErrorSize))
 			return true;
 		FormatCreateMaps(aBuf, sizeof(aBuf));
 		if(Execute(aBuf, pError, ErrorSize))
 			return true;
-		FormatCreateSaves(aBuf, sizeof(aBuf), /* Backup */ false);
+		FormatCreateSaves(aBuf, sizeof(aBuf));
 		if(Execute(aBuf, pError, ErrorSize))
 			return true;
 		FormatCreatePoints(aBuf, sizeof(aBuf));
-		if(Execute(aBuf, pError, ErrorSize))
-			return true;
-
-		FormatCreateRace(aBuf, sizeof(aBuf), /* Backup */ true);
-		if(Execute(aBuf, pError, ErrorSize))
-			return true;
-		FormatCreateTeamrace(aBuf, sizeof(aBuf), "BLOB", /* Backup */ true);
-		if(Execute(aBuf, pError, ErrorSize))
-			return true;
-		FormatCreateSaves(aBuf, sizeof(aBuf), /* Backup */ true);
 		if(Execute(aBuf, pError, ErrorSize))
 			return true;
 		m_Setup = false;

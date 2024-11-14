@@ -11,10 +11,6 @@ CServerLogger::CServerLogger(CServer *pServer) :
 
 void CServerLogger::Log(const CLogMessage *pMessage)
 {
-	if(m_Filter.Filters(pMessage))
-	{
-		return;
-	}
 	m_PendingLock.lock();
 	if(m_MainThread == std::this_thread::get_id())
 	{
@@ -30,8 +26,7 @@ void CServerLogger::Log(const CLogMessage *pMessage)
 			m_vPending.clear();
 		}
 		m_PendingLock.unlock();
-		if(m_pServer)
-			m_pServer->SendLogLine(pMessage);
+		m_pServer->SendLogLine(pMessage);
 	}
 	else
 	{

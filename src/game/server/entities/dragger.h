@@ -35,13 +35,11 @@ class CDragger : public CEntity
 public:
 	CDragger(CGameWorld *pGameWorld, vec2 Pos, float Strength, bool IgnoreWalls, int Layer = 0, int Number = 0);
 
-	void RemoveDraggerBeam(int ClientId);
-	bool WillDraggerBeamUseDraggerId(int TargetClientId, int SnappingClientId);
+	void RemoveDraggerBeam(int ClientID);
 
 	void Reset() override;
 	void Tick() override;
 	void Snap(int SnappingClient) override;
-	void SwapClients(int Client1, int Client2) override;
 };
 
 #endif // GAME_SERVER_ENTITIES_DRAGGER_H
