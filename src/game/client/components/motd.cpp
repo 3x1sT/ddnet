@@ -10,21 +10,12 @@
 
 #include "motd.h"
 
-CMotd::CMotd()
-{
-	m_aServerMotd[0] = '\0';
-	m_ServerMotdTime = 0;
-	m_ServerMotdUpdateTime = 0;
-}
-
 void CMotd::Clear()
 {
 	m_ServerMotdTime = 0;
-	Graphics()->DeleteQuadContainer(m_RectQuadContainer);
-	TextRender()->DeleteTextContainer(m_TextContainerIndex);
 }
 
-bool CMotd::IsActive() const
+bool CMotd::IsActive()
 {
 	return time() < m_ServerMotdTime;
 }
@@ -35,57 +26,24 @@ void CMotd::OnStateChange(int NewState, int OldState)
 		Clear();
 }
 
-void CMotd::OnWindowResize()
-{
-	Graphics()->DeleteQuadContainer(m_RectQuadContainer);
-	TextRender()->DeleteTextContainer(m_TextContainerIndex);
-}
-
 void CMotd::OnRender()
 {
-	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
-		return;
-
 	if(!IsActive())
 		return;
 
-	const float FontSize = 32.0f; // also the size of the margin and rect rounding
-	const float ScreenHeight = 40.0f * FontSize; // multiple of the font size to get perfect alignment
-	const float ScreenWidth = ScreenHeight * Graphics()->ScreenAspect();
-	Graphics()->MapScreen(0.0f, 0.0f, ScreenWidth, ScreenHeight);
+	float Width = 400 * 3.0f * Graphics()->ScreenAspect();
+	float Height = 400 * 3.0f;
 
-	const float RectHeight = 26.0f * FontSize;
-	const float RectWidth = 630.0f + 2.0f * FontSize;
-	const float RectX = ScreenWidth / 2.0f - RectWidth / 2.0f;
-	const float RectY = 160.0f;
+	Graphics()->MapScreen(0, 0, Width, Height);
 
-	if(m_RectQuadContainer == -1)
-	{
-		Graphics()->SetColor(0.0f, 0.0f, 0.0f, 0.5f);
-		m_RectQuadContainer = Graphics()->CreateRectQuadContainer(RectX, RectY, RectWidth, RectHeight, FontSize, IGraphics::CORNER_ALL);
-		Graphics()->SetColor(1.0f, 1.0f, 1.0f, 1.0f);
-	}
+	float h = 800.0f;
+	float w = 650.0f;
+	float x = Width / 2 - w / 2;
+	float y = 150.0f;
 
-	if(m_RectQuadContainer != -1)
-	{
-		Graphics()->TextureClear();
-		Graphics()->RenderQuadContainer(m_RectQuadContainer, -1);
-	}
+	Graphics()->DrawRect(x, y, w, h, ColorRGBA(0.0f, 0.0f, 0.0f, 0.5f), IGraphics::CORNER_ALL, 40.0f);
 
-	const float TextWidth = RectWidth - 2.0f * FontSize;
-	const float TextX = RectX + FontSize;
-	const float TextY = RectY + FontSize;
-
-	if(!m_TextContainerIndex.Valid())
-	{
-		CTextCursor Cursor;
-		TextRender()->SetCursor(&Cursor, TextX, TextY, FontSize, TEXTFLAG_RENDER);
-		Cursor.m_LineWidth = TextWidth;
-		TextRender()->CreateTextContainer(m_TextContainerIndex, &Cursor, ServerMotd());
-	}
-
-	if(m_TextContainerIndex.Valid())
-		TextRender()->RenderTextContainer(m_TextContainerIndex, TextRender()->DefaultTextColor(), TextRender()->DefaultTextOutlineColor());
+	TextRender()->Text(0, x + 40.0f, y + 40.0f, 32.0f, m_aServerMotd, w - 80.0f);
 }
 
 void CMotd::OnMessage(int MsgType, void *pRawMsg)
@@ -95,13 +53,13 @@ void CMotd::OnMessage(int MsgType, void *pRawMsg)
 
 	if(MsgType == NETMSGTYPE_SV_MOTD)
 	{
-		const CNetMsg_Sv_Motd *pMsg = static_cast<CNetMsg_Sv_Motd *>(pRawMsg);
+		CNetMsg_Sv_Motd *pMsg = (CNetMsg_Sv_Motd *)pRawMsg;
 
 		// copy it manually to process all \n
 		const char *pMsgStr = pMsg->m_pMessage;
-		const size_t MotdLen = str_length(pMsgStr) + 1;
+		int MotdLen = str_length(pMsgStr) + 1;
 		const char *pLast = m_aServerMotd; // for console printing
-		for(size_t i = 0, k = 0; i < MotdLen && k < sizeof(m_aServerMotd); i++, k++)
+		for(int i = 0, k = 0; i < MotdLen && k < (int)sizeof(m_aServerMotd); i++, k++)
 		{
 			// handle incoming "\\n"
 			if(pMsgStr[i] == '\\' && pMsgStr[i + 1] == 'n')
@@ -125,16 +83,14 @@ void CMotd::OnMessage(int MsgType, void *pRawMsg)
 		if(g_Config.m_ClPrintMotd && *pLast != '\0')
 			m_pClient->Console()->Print(IConsole::OUTPUT_LEVEL_STANDARD, "motd", pLast, color_cast<ColorRGBA>(ColorHSLA(g_Config.m_ClMessageHighlightColor)));
 
-		m_ServerMotdUpdateTime = time();
 		if(m_aServerMotd[0] && g_Config.m_ClMotdTime)
-			m_ServerMotdTime = m_ServerMotdUpdateTime + time_freq() * g_Config.m_ClMotdTime;
+			m_ServerMotdTime = time() + time_freq() * g_Config.m_ClMotdTime;
 		else
 			m_ServerMotdTime = 0;
-		TextRender()->DeleteTextContainer(m_TextContainerIndex);
 	}
 }
 
-bool CMotd::OnInput(const IInput::CEvent &Event)
+bool CMotd::OnInput(IInput::CEvent Event)
 {
 	if(IsActive() && Event.m_Flags & IInput::FLAG_PRESS && Event.m_Key == KEY_ESCAPE)
 	{

@@ -35,31 +35,29 @@ Dependencies on Linux / macOS
 
 You can install the required libraries on your system, `touch CMakeLists.txt` and CMake will use the system-wide libraries by default. You can install all required dependencies and CMake on Debian or Ubuntu like this:
 
-    sudo apt install build-essential cargo cmake git glslang-tools google-mock libavcodec-extra libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev libcurl4-openssl-dev libfreetype6-dev libglew-dev libnotify-dev libogg-dev libopus-dev libopusfile-dev libpng-dev libsdl2-dev libsqlite3-dev libssl-dev libvulkan-dev libwavpack-dev libx264-dev python3 rustc spirv-tools
+    sudo apt install build-essential cmake git google-mock libcurl4-openssl-dev libssl-dev libfreetype6-dev libglew-dev libnotify-dev libogg-dev libopus-dev libopusfile-dev libsdl2-dev libsqlite3-dev libwavpack-dev python libx264-dev libavfilter-dev libavdevice-dev libavformat-dev libavcodec-extra libavutil-dev libvulkan-dev glslang-tools spirv-tools libpng-dev
 
 On older distributions like Ubuntu 18.04 don't install `google-mock`, but instead set `-DDOWNLOAD_GTEST=ON` when building to get a more recent gtest/gmock version.
 
-On older distributions `rustc` version might be too old, to get an up-to-date Rust compiler you can use [rustup](https://rustup.rs/) with stable channel instead or try the `rustc-mozilla` package.
-
 Or on CentOS, RedHat and AlmaLinux like this:
 
-    sudo yum install cargo cmake ffmpeg-devel freetype-devel gcc gcc-c++ git glew-devel glslang gmock-devel gtest-devel libcurl-devel libnotify-devel libogg-devel libpng-devel libx264-devel make openssl-devel opus-devel opusfile-devel python2 rust SDL2-devel spirv-tools sqlite-devel vulkan-devel wavpack-devel
+    sudo yum install gcc gcc-c++ make cmake git python2 gtest-devel gmock-devel libcurl-devel openssl-devel freetype-devel glew-devel libnotify-devel libogg-devel opus-devel opusfile-devel SDL2-devel sqlite-devel wavpack-devel libx264-devel ffmpeg-devel vulkan-devel glslang spirv-tools libpng-devel
+ 
+Or on Fedora like this:  
 
-Or on Fedora like this:
-
-    sudo dnf install cargo cmake ffmpeg-devel freetype-devel gcc gcc-c++ git glew-devel glslang gmock-devel gtest-devel libcurl-devel libnotify-devel libogg-devel libpng-devel make openssl-devel opus-devel opusfile-devel python2 SDL2-devel spirv-tools sqlite-devel vulkan-devel wavpack-devel x264-devel
-
+    sudo dnf install gcc gcc-c++ make cmake git python2 gtest-devel gmock-devel libcurl-devel openssl-devel freetype-devel glew-devel libnotify-devel libogg-devel opus-devel opusfile-devel SDL2-devel sqlite-devel wavpack-devel x264-devel ffmpeg-devel vulkan-devel glslang spirv-tools libpng-devel
+    
 Or on Arch Linux like this:
 
-    sudo pacman -S --needed base-devel cmake curl ffmpeg freetype2 git glew glslang gmock libnotify libpng opusfile python rust sdl2 spirv-tools sqlite vulkan-headers vulkan-icd-loader wavpack x264
+    sudo pacman -S --needed base-devel cmake curl freetype2 git glew gmock libnotify opusfile python sdl2 sqlite wavpack x264 ffmpeg vulkan-icd-loader vulkan-headers glslang spirv-tools libpng
 
 Or on Gentoo like this:
 
-    emerge --ask dev-db/sqlite dev-lang/rust-bin dev-libs/glib dev-libs/openssl dev-util/glslang dev-util/spirv-headers dev-util/spirv-tools media-libs/freetype media-libs/glew media-libs/libglvnd media-libs/libogg media-libs/libpng media-libs/libsdl2 media-libs/libsdl2[vulkan] media-libs/opus media-libs/opusfile media-libs/pnglite media-libs/vulkan-loader[layers] media-sound/wavpack media-video/ffmpeg net-misc/curl x11-libs/gdk-pixbuf x11-libs/libnotify
-
+    emerge --ask media-libs/freetype media-libs/glew media-libs/libogg media-libs/libsdl2 media-libs/opus media-libs/opusfile media-libs/pnglite media-video/ffmpeg dev-libs/glib dev-libs/openssl dev-db/sqlite media-libs/libglvnd media-libs/libpng media-sound/wavpack net-misc/curl media-libs/vulkan-loader[layers] media-libs/libsdl2[vulkan] x11-libs/gdk-pixbuf x11-libs/libnotify dev-util/spirv-tools dev-util/glslang dev-util/spirv-headers
+    
 On macOS you can use [homebrew](https://brew.sh/) to install build dependencies like this:
 
-    brew install cmake ffmpeg freetype glew glslang googletest libpng molten-vk opusfile rust SDL2 spirv-tools vulkan-headers wavpack x264
+    brew install cmake freetype glew googletest opusfile SDL2 wavpack x264 ffmpeg molten-vk vulkan-headers glslang spirv-tools libpng
 
 If you don't want to use the system libraries, you can pass the `-DPREFER_BUNDLED_LIBS=ON` parameter to cmake.
 
@@ -94,9 +92,7 @@ Whether to enable MySQL/MariaDB support for server. Requires at least MySQL 8.0 
    Note that the bundled MySQL libraries might not work properly on your system. If you run into connection problems with the MySQL server, for example that it connects as root while you chose another user, make sure to install your system libraries for the MySQL client. Make sure that the CMake configuration summary says that it found MySQL libs that were not bundled (no "using bundled libs").
 
 * **-DTEST_MYSQL=[ON|OFF]** <br>
-Whether to test MySQL/MariaDB support in GTest based tests. Default value is OFF.
-
-   Note that this requires a running MySQL/MariaDB database on localhost with this setup:
+Whether to test MySQL/MariaDB support in GTest based tests. Note that this requires a running MySQL/MariaDB database on localhost with this setup:
 
 ```
 CREATE DATABASE ddnet;
@@ -123,30 +119,20 @@ Whether to optimize for development, speeding up the compilation process a littl
 * **-DUPNP=[ON|OFF]** <br>
 Whether to enable UPnP support for the server.
 You need to install `libminiupnpc-dev` on Debian, `miniupnpc` on Arch Linux.
-Default value is OFF.
 
 * **-DVULKAN=[ON|OFF]** <br>
 Whether to enable the vulkan backend.
 On Windows you need to install the Vulkan SDK and set the `VULKAN_SDK` environment flag accordingly.
-Default value is ON for Windows x86\_64 and Linux, and OFF for Windows x86 and macOS.
 
 * **-GNinja** <br>
-Use the Ninja build system instead of Make. This automatically parallelizes the build and is generally faster. Compile with `ninja` instead of `make`. Install Ninja with `sudo apt install ninja-build` on Debian, `sudo pacman -S --needed ninja` on Arch Linux.
+Use the Ninja build system instead of Make. This automatically parallizes the build and is generally faster. Compile with `ninja` instead of `make`. Install Ninja with `sudo apt install ninja-build` on Debian, `sudo pacman -S --needed ninja` on Arch Linux.
 
 * **-DCMAKE_CXX_LINK_FLAGS=[FLAGS]** <br>
-Custom flags to set for compiler when linking.
+Custom flags to set for compiler when linking. With clang++ as the compiler this can be [used to link](https://github.com/rui314/mold#how-to-use) with [mold](https://github.com/rui314/mold), speeds up linking by a factor of ~10:
 
-* **-DEXCEPTION_HANDLING=[ON|OFF]** <br>
-Enable exception handling (only works with Windows as of now, uses DrMingw there). Default value is OFF.
-
-* **-DIPO=[ON|OFF]** <br>
-Enable interprocedural optimizations, also known as Link Time Optimization (LTO). Default value is OFF.
-
-* **-DFUSE_LD=[OFF|LINKER]** <br>
-Linker to use. Default value is OFF to try mold, lld, gold.
-
-* **-DSECURITY_COMPILER_FLAGS=[ON|OFF]** <br>
-Whether to set security-relevant compiler flags like `-D_FORTIFY_SOURCE=2` and `-fstack-protector-all`. Default Value is ON.
+```bash
+CC=clang CXX=clang++ cmake -DCMAKE_CXX_LINK_FLAGS="--ld-path=/usr/bin/mold" .
+```
 
 Running tests (Debian/Ubuntu)
 -----------------------------
@@ -158,8 +144,8 @@ This library isn't compiled, so you have to do it:
 sudo apt install libgtest-dev
 cd /usr/src/gtest
 sudo cmake CMakeLists.txt
-sudo make -j$(nproc)
-
+sudo make -j8
+ 
 # copy or symlink libgtest.a and libgtest_main.a to your /usr/lib folder
 sudo cp lib/*.a /usr/lib
 ```
@@ -196,34 +182,12 @@ Check the SAN.\* files afterwards. This finds more problems than memcheck, runs 
 For valgrind's memcheck compile a normal Debug build and run with: `valgrind --tool=memcheck ./DDNet`
 Expect a large slow down.
 
-Building on Windows with the Visual Studio IDE
+Building on Windows with Visual Studio
 --------------------------------------
 
-Download and install some version of [Microsoft Visual Studio](https://www.visualstudio.com/) (At the time of writing, MSVS Community 2022) with **C++ support**.
+Download and install some version of [Microsoft Visual Studio](https://www.visualstudio.com/) (as of writing, MSVS Community 2017) with **C++ support**, install [Python 3](https://www.python.org/downloads/) **for all users** and install [CMake](https://cmake.org/download/#latest).
 
-You'll have to install both [Python 3](https://www.python.org/downloads/) and [Rust](https://rustup.rs/) as well.
-
-Make sure the MSVC build tools, C++ CMake-Tools and the latest Windows SDK version appropriate to your windows version are selected in the installer.
-
-Now open up your Project folder, Visual Studio should automatically detect and configure your project using CMake.
-
-On your tools hotbar next to the triangular "Run" Button, you can now select what you want to start (e.g game-client or game-server) and build it.
-
-Building on Windows with standalone MSVC build tools 
---------------------------------------
-
-First off you will need to install the MSVC [Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/), [Python 3](https://www.python.org/downloads/) as well as [Rust](https://www.rust-lang.org/tools/install).
-
-To compile and build DDNet on Windows, use your IDE of choice either with a CMake integration (e.g Visual Studio Code), or by ~~**deprecated**~~ using the CMake GUI.
-
-Configure CMake to use the MSVC Build Tools appropriate to your System by your IDE's instructions.
-
-If you're using Visual Studio Code, you can use the [CMake Tools](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools) extension to configure and build the project.
-
-You can then open the project folder in VSC and press `Ctrl+Shift+P` to open the command palette, then search for `CMake: Configure`
-
-This will open up a prompt for you to select a kit, select your `Visual Studio` version and save it. You can now use the GUI (bottom left) to compile and build your project.
-
+Start CMake and select the source code folder (where DDNet resides, the directory with `CMakeLists.txt`). Additionally select a build folder, e.g. create a build subdirectory in the source code directory. Click "Configure" and select the Visual Studio generator (it should be pre-selected, so pressing "Finish" will suffice). After configuration finishes and the "Generate" reactivates, click it. When that finishes, click "Open Project". Visual Studio should open. You can compile the DDNet client by right-clicking the DDNet project (not the solution) and select "Select as StartUp project". Now you should be able to compile DDNet by clicking the green, triangular "Run" button.
 
 Cross-compiling on Linux to Windows x86/x86\_64
 -----------------------------------------------
@@ -309,7 +273,7 @@ add_sqlserver w teeworlds record teeworlds "PW2" "localhost" "3306"
 $ mkdir build
 $ cd build
 $ cmake -DMYSQL=ON ..
-$ make -j$(nproc)
+$ make -j8
 $ ./DDNet-Server -f mine.cfg
 ```
 
@@ -351,12 +315,6 @@ FreeBSD
 $ pkg install DDNet
 ```
 
-Windows (Scoop)
-```
-scoop bucket add games
-scoop install games/ddnet
-```
-
 Benchmarking
 ------------
 
@@ -376,16 +334,4 @@ For `tig`, use `tig blame path/to/file.cpp` to open the blame view, you can navi
 Only then you could also set up git to ignore specific formatting revisions:
 ```bash
 git config blame.ignoreRevsFile formatting-revs.txt
-```
-
-(Neo)Vim Syntax Highlighting for config files
-----------------------------------------
-Copy the file detection and syntax files to your vim config folder:
-
-```bash
-# vim
-cp -R other/vim/* ~/.vim/
-
-# neovim
-cp -R other/vim/* ~/.config/nvim/
 ```

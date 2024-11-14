@@ -171,7 +171,7 @@
 #define CONF_ARCH_ENDIAN_LITTLE 1
 #endif
 
-#if defined(__aarch64__) || defined(__arm64__) || defined(__ARM_ARCH)
+#if defined(__aarch64__) || defined(__arm64__)
 #define CONF_ARCH_ARM64 1
 #define CONF_ARCH_STRING "arm64"
 #define CONF_ARCH_ENDIAN_LITTLE 1
@@ -193,14 +193,6 @@
 
 #ifndef CONF_ARCH_STRING
 #define CONF_ARCH_STRING "unknown"
-#endif
-
-#if defined(CONF_ARCH_ENDIAN_LITTLE)
-#define CONF_ARCH_ENDIAN_STRING "little endian"
-#elif defined(CONF_ARCH_ENDIAN_BIG)
-#define CONF_ARCH_ENDIAN_STRING "big endian"
-#else
-#error "Unsupported endianness"
 #endif
 
 #endif

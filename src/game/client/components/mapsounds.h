@@ -6,13 +6,12 @@
 #include <engine/sound.h>
 
 #include <game/client/component.h>
-#include <game/mapitems.h>
 
 struct CSoundSource;
 
 class CMapSounds : public CComponent
 {
-	int m_aSounds[MAX_MAPSOUNDS];
+	int m_aSounds[64];
 	int m_Count;
 
 	struct CSourceQueueEntry
@@ -32,9 +31,6 @@ class CMapSounds : public CComponent
 public:
 	CMapSounds();
 	virtual int Sizeof() const override { return sizeof(*this); }
-
-	void Play(int SoundId);
-	void PlayAt(int SoundId, vec2 Pos);
 
 	virtual void OnMapLoad() override;
 	virtual void OnRender() override;

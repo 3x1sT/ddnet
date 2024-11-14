@@ -33,6 +33,9 @@ class CCharacter : public CEntity
 public:
 	~CCharacter();
 
+	//character's size
+	static const int ms_PhysSize = 28;
+
 	void PreTick() override;
 	void Tick() override;
 	void TickDeferred() override;
@@ -51,8 +54,6 @@ public:
 
 	void OnPredictedInput(CNetObj_PlayerInput *pNewInput);
 	void OnDirectInput(CNetObj_PlayerInput *pNewInput);
-	void ReleaseHook();
-	void ResetHook();
 	void ResetInput();
 	void FireWeapon();
 
@@ -62,12 +63,6 @@ public:
 	void GiveNinja();
 	void RemoveNinja();
 
-	void ResetVelocity();
-	void SetVelocity(vec2 NewVelocity);
-	void SetRawVelocity(vec2 NewVelocity);
-	void AddVelocity(vec2 Addition);
-	void ApplyMoveRestrictions();
-
 	bool m_IsLocal;
 
 	CTeamsCore *TeamsCore();
@@ -76,8 +71,8 @@ public:
 	bool UnFreeze();
 	void GiveAllWeapons();
 	int Team();
-	bool CanCollide(int ClientId);
-	bool SameTeam(int ClientId);
+	bool CanCollide(int ClientID);
+	bool SameTeam(int ClientID);
 	bool m_NinjaJetpack;
 	int m_FreezeTime;
 	bool m_FrozenLastTick;
@@ -89,6 +84,7 @@ public:
 	int m_TileIndex;
 	int m_TileFIndex;
 
+	int m_MoveRestrictions;
 	bool m_LastRefillJumps;
 
 	// Setters/Getters because i don't want to modify vanilla vars access modifiers
@@ -98,7 +94,7 @@ public:
 	void SetActiveWeapon(int ActiveWeap);
 	CCharacterCore GetCore() { return m_Core; }
 	void SetCore(CCharacterCore Core) { m_Core = Core; }
-	const CCharacterCore *Core() const { return &m_Core; }
+	CCharacterCore *Core() { return &m_Core; }
 	bool GetWeaponGot(int Type) { return m_Core.m_aWeapons[Type].m_Got; }
 	void SetWeaponGot(int Type, bool Value) { m_Core.m_aWeapons[Type].m_Got = Value; }
 	int GetWeaponAmmo(int Type) { return m_Core.m_aWeapons[Type].m_Ammo; }
@@ -106,8 +102,8 @@ public:
 	void SetNinjaActivationDir(vec2 ActivationDir) { m_Core.m_Ninja.m_ActivationDir = ActivationDir; }
 	void SetNinjaActivationTick(int ActivationTick) { m_Core.m_Ninja.m_ActivationTick = ActivationTick; }
 	void SetNinjaCurrentMoveTime(int CurrentMoveTime) { m_Core.m_Ninja.m_CurrentMoveTime = CurrentMoveTime; }
-	int GetCid() { return m_Id; }
-	void SetInput(const CNetObj_PlayerInput *pNewInput)
+	int GetCID() { return m_ID; }
+	void SetInput(CNetObj_PlayerInput *pNewInput)
 	{
 		m_LatestInput = m_Input = *pNewInput;
 		// it is not allowed to aim in the center
@@ -118,9 +114,9 @@ public:
 	};
 	int GetJumped() { return m_Core.m_Jumped; }
 	int GetAttackTick() { return m_AttackTick; }
-	int GetStrongWeakId() { return m_StrongWeakId; }
+	int GetStrongWeakID() { return m_StrongWeakID; }
 
-	CCharacter(CGameWorld *pGameWorld, int Id, CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended = 0);
+	CCharacter(CGameWorld *pGameWorld, int ID, CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended = 0);
 	void Read(CNetObj_Character *pChar, CNetObj_DDNetCharacter *pExtended, bool IsLocal);
 	void SetCoreWorld(CGameWorld *pGameWorld);
 
@@ -130,7 +126,7 @@ public:
 	int m_GameTeam;
 	bool m_CanMoveInFreeze;
 
-	bool Match(CCharacter *pChar) const;
+	bool Match(CCharacter *pChar);
 	void ResetPrediction();
 	void SetTuneZone(int Zone);
 
@@ -142,6 +138,9 @@ public:
 	bool IsSuper() { return m_Core.m_Super; }
 
 private:
+	/* for ai */
+	bool m_wantskill;
+	bool m_waitsreply;
 	// weapon info
 	int m_aHitObjects[10];
 	int m_NumObjectsHit;
@@ -151,8 +150,6 @@ private:
 
 	int m_ReloadTimer;
 	int m_AttackTick;
-
-	int m_MoveRestrictions;
 
 	// these are non-heldback inputs
 	CNetObj_PlayerInput m_LatestPrevInput;
@@ -179,7 +176,7 @@ private:
 
 	CTuningParams *CharacterTuning();
 
-	int m_StrongWeakId;
+	int m_StrongWeakID;
 
 	int m_LastWeaponSwitchTick;
 	int m_LastTuneZoneTick;

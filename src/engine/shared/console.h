@@ -5,7 +5,6 @@
 
 #include "memheap.h"
 #include <base/math.h>
-#include <base/system.h>
 #include <engine/console.h>
 #include <engine/storage.h>
 
@@ -47,7 +46,8 @@ class CConsole : public IConsole
 	};
 
 	CExecFile *m_pFirstExec;
-	IStorage *m_pStorage;
+	class CConfig *m_pConfig;
+	class IStorage *m_pStorage;
 	int m_AccessLevel;
 
 	CCommand *m_pRecycleList;
@@ -58,10 +58,12 @@ class CConsole : public IConsole
 	static void Con_Chain(IResult *pResult, void *pUserData);
 	static void Con_Echo(IResult *pResult, void *pUserData);
 	static void Con_Exec(IResult *pResult, void *pUserData);
+	static void ConToggle(IResult *pResult, void *pUser);
+	static void ConToggleStroke(IResult *pResult, void *pUser);
 	static void ConCommandAccess(IResult *pResult, void *pUser);
 	static void ConCommandStatus(IConsole::IResult *pResult, void *pUser);
 
-	void ExecuteLineStroked(int Stroke, const char *pStr, int ClientId = -1, bool InterpretSemicolons = true) override;
+	void ExecuteLineStroked(int Stroke, const char *pStr, int ClientID = -1, bool InterpretSemicolons = true) override;
 
 	FTeeHistorianCommandCallback m_pfnTeeHistorianCommandCallback;
 	void *m_pTeeHistorianCommandUserdata;
@@ -112,10 +114,10 @@ class CConsole : public IConsole
 			m_apArgs[m_NumArgs++] = pArg;
 		}
 
-		const char *GetString(unsigned Index) const override;
-		int GetInteger(unsigned Index) const override;
-		float GetFloat(unsigned Index) const override;
-		ColorHSLA GetColor(unsigned Index, bool Light) const override;
+		const char *GetString(unsigned Index) override;
+		int GetInteger(unsigned Index) override;
+		float GetFloat(unsigned Index) override;
+		ColorHSLA GetColor(unsigned Index, bool Light) override;
 
 		void RemoveArgument(unsigned Index) override
 		{
@@ -137,10 +139,10 @@ class CConsole : public IConsole
 
 		int m_Victim;
 		void ResetVictim();
-		bool HasVictim() const;
+		bool HasVictim();
 		void SetVictim(int Victim);
 		void SetVictim(const char *pVictim);
-		int GetVictim() const override;
+		int GetVictim() override;
 	};
 
 	int ParseStart(CResult *pResult, const char *pString, int Length);
@@ -162,13 +164,14 @@ class CConsole : public IConsole
 		struct CQueueEntry
 		{
 			CQueueEntry *m_pNext;
-			CCommand *m_pCommand;
+			FCommandCallback m_pfnCommandCallback;
+			void *m_pCommandUserData;
 			CResult m_Result;
 		} * m_pFirst, *m_pLast;
 
 		void AddEntry()
 		{
-			CQueueEntry *pEntry = m_Queue.Allocate<CQueueEntry>();
+			CQueueEntry *pEntry = static_cast<CQueueEntry *>(m_Queue.Allocate(sizeof(CQueueEntry)));
 			pEntry->m_pNext = 0;
 			if(!m_pFirst)
 				m_pFirst = pEntry;
@@ -187,9 +190,9 @@ class CConsole : public IConsole
 	void AddCommandSorted(CCommand *pCommand);
 	CCommand *FindCommand(const char *pName, int FlagMask);
 
-	bool m_Cheated;
-
 public:
+	CConfig *Config() { return m_pConfig; }
+
 	CConsole(int FlagMask);
 	~CConsole();
 
@@ -207,25 +210,21 @@ public:
 	void StoreCommands(bool Store) override;
 
 	bool LineIsValid(const char *pStr) override;
-	void ExecuteLine(const char *pStr, int ClientId = -1, bool InterpretSemicolons = true) override;
-	void ExecuteLineFlag(const char *pStr, int FlagMask, int ClientId = -1, bool InterpretSemicolons = true) override;
-	bool ExecuteFile(const char *pFilename, int ClientId = -1, bool LogFailure = false, int StorageType = IStorage::TYPE_ALL) override;
+	void ExecuteLine(const char *pStr, int ClientID = -1, bool InterpretSemicolons = true) override;
+	void ExecuteLineFlag(const char *pStr, int FlagMask, int ClientID = -1, bool InterpretSemicolons = true) override;
+	void ExecuteFile(const char *pFilename, int ClientID = -1, bool LogFailure = false, int StorageType = IStorage::TYPE_ALL) override;
 
 	char *Format(char *pBuf, int Size, const char *pFrom, const char *pStr) override;
-	void Print(int Level, const char *pFrom, const char *pStr, ColorRGBA PrintColor = gs_ConsoleDefaultColor) const override;
+	void Print(int Level, const char *pFrom, const char *pStr, ColorRGBA PrintColor = gs_ConsoleDefaultColor) override;
 	void SetTeeHistorianCommandCallback(FTeeHistorianCommandCallback pfnCallback, void *pUser) override;
 	void SetUnknownCommandCallback(FUnknownCommandCallback pfnCallback, void *pUser) override;
 	void InitChecksum(CChecksumData *pData) const override;
 
 	void SetAccessLevel(int AccessLevel) override { m_AccessLevel = clamp(AccessLevel, (int)(ACCESS_LEVEL_ADMIN), (int)(ACCESS_LEVEL_USER)); }
-
+	void ResetServerGameSettings() override;
 	// DDRace
 
 	static void ConUserCommandStatus(IConsole::IResult *pResult, void *pUser);
-
-	bool Cheated() const override { return m_Cheated; }
-
-	int FlagMask() const override { return m_FlagMask; }
 	void SetFlagMask(int FlagMask) override { m_FlagMask = FlagMask; }
 };
 

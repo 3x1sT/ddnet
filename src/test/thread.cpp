@@ -1,8 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <base/lock.h>
 #include <base/system.h>
-#include <base/tl/threading.h>
 
 static void Nothing(void *pUser)
 {
@@ -51,20 +49,6 @@ TEST(Thread, SemaphoreSingleThreaded)
 	sphore_destroy(&Semaphore);
 }
 
-TEST(Thread, SemaphoreWrapperSingleThreaded)
-{
-	CSemaphore Semaphore;
-	EXPECT_EQ(Semaphore.GetApproximateValue(), 0);
-	Semaphore.Signal();
-	EXPECT_EQ(Semaphore.GetApproximateValue(), 1);
-	Semaphore.Signal();
-	EXPECT_EQ(Semaphore.GetApproximateValue(), 2);
-	Semaphore.Wait();
-	EXPECT_EQ(Semaphore.GetApproximateValue(), 1);
-	Semaphore.Wait();
-	EXPECT_EQ(Semaphore.GetApproximateValue(), 0);
-}
-
 static void SemaphoreThread(void *pUser)
 {
 	SEMAPHORE *pSemaphore = (SEMAPHORE *)pUser;
@@ -83,16 +67,17 @@ TEST(Thread, SemaphoreMultiThreaded)
 
 static void LockThread(void *pUser)
 {
-	CLock *pLock = (CLock *)pUser;
-	pLock->lock();
-	pLock->unlock();
+	LOCK *pLock = (LOCK *)pUser;
+	lock_wait(*pLock);
+	lock_unlock(*pLock);
 }
 
 TEST(Thread, Lock)
 {
-	CLock Lock;
-	Lock.lock();
+	LOCK Lock = lock_create();
+	lock_wait(Lock);
 	void *pThread = thread_init(LockThread, &Lock, "lock");
-	Lock.unlock();
+	lock_unlock(Lock);
 	thread_wait(pThread);
+	lock_destroy(Lock);
 }

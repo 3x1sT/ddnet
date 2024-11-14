@@ -1,4 +1,4 @@
-#include <cstdint>
+#include <stdint.h>
 
 struct DECOMP_SLICE
 {

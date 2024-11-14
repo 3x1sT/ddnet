@@ -8,43 +8,24 @@
 
 class IGameController;
 class CGameContext;
-class CGameWorld;
 class CCharacter;
 class CSaveTeam;
-
-enum
-{
-	RESCUEMODE_AUTO = 0,
-	RESCUEMODE_MANUAL,
-	NUM_RESCUEMODES
-};
-
-enum class ESaveResult
-{
-	SUCCESS,
-	TEAM_FLOCK,
-	TEAM_NOT_FOUND,
-	CHAR_NOT_FOUND,
-	NOT_STARTED,
-	TEAM_0_MODE,
-	DRAGGER_ACTIVE
-};
 
 class CSaveTee
 {
 public:
 	CSaveTee();
 	~CSaveTee() = default;
-	void Save(CCharacter *pchr, bool AddPenalty = true);
-	bool Load(CCharacter *pchr, int Team, bool IsSwap = false);
+	void Save(CCharacter *pchr);
+	void Load(CCharacter *pchr, int Team, bool IsSwap = false);
 	char *GetString(const CSaveTeam *pTeam);
 	int FromString(const char *pString);
 	void LoadHookedPlayer(const CSaveTeam *pTeam);
 	bool IsHooking() const;
 	vec2 GetPos() const { return m_Pos; }
 	const char *GetName() const { return m_aName; }
-	int GetClientId() const { return m_ClientId; }
-	void SetClientId(int ClientId) { m_ClientId = ClientId; }
+	int GetClientID() const { return m_ClientID; }
+	void SetClientID(int ClientID) { m_ClientID = ClientID; }
 
 	enum
 	{
@@ -56,7 +37,7 @@ public:
 	};
 
 private:
-	int m_ClientId;
+	int m_ClientID;
 
 	char m_aString[2048];
 	char m_aName[16];
@@ -77,15 +58,6 @@ private:
 		int m_Ammocost;
 		int m_Got;
 	} m_aWeapons[NUM_WEAPONS];
-
-	// ninja
-	struct
-	{
-		vec2 m_ActivationDir;
-		int m_ActivationTick;
-		int m_CurrentMoveTime;
-		int m_OldVelAmount;
-	} m_Ninja;
 
 	int m_LastWeapon;
 	int m_QueuedWeapon;
@@ -151,24 +123,25 @@ private:
 class CSaveTeam
 {
 public:
-	CSaveTeam();
+	CSaveTeam(IGameController *pController);
 	~CSaveTeam();
 	char *GetString();
 	int GetMembersCount() const { return m_MembersCount; }
 	// MatchPlayers has to be called afterwards
 	int FromString(const char *pString);
 	// returns true if a team can load, otherwise writes a nice error Message in pMessage
-	bool MatchPlayers(const char (*paNames)[MAX_NAME_LENGTH], const int *pClientId, int NumPlayer, char *pMessage, int MessageLen) const;
-	ESaveResult Save(CGameContext *pGameServer, int Team, bool Dry = false, bool Force = false);
-	bool Load(CGameContext *pGameServer, int Team, bool KeepCurrentWeakStrong, bool IgnorePlayers = false);
+	bool MatchPlayers(const char (*paNames)[MAX_NAME_LENGTH], const int *pClientID, int NumPlayer, char *pMessage, int MessageLen);
+	int Save(int Team);
+	void Load(int Team, bool KeepCurrentWeakStrong);
+	CSaveTee *m_pSavedTees;
 
-	CSaveTee *m_pSavedTees = nullptr;
-
-	// returns true if an error occurred
-	static bool HandleSaveError(ESaveResult Result, int ClientId, CGameContext *pGameContext);
+	// returns true if an error occured
+	static bool HandleSaveError(int Result, int ClientID, CGameContext *pGameContext);
 
 private:
-	CCharacter *MatchCharacter(CGameContext *pGameServer, int ClientId, int SaveId, bool KeepCurrentCharacter) const;
+	CCharacter *MatchCharacter(int ClientID, int SaveID, bool KeepCurrentCharacter);
+
+	IGameController *m_pController;
 
 	char m_aString[65536];
 
@@ -178,13 +151,13 @@ private:
 		int m_EndTime;
 		int m_Type;
 	};
-	SSimpleSwitchers *m_pSwitchers = nullptr;
+	SSimpleSwitchers *m_pSwitchers;
 
-	int m_TeamState = 0;
-	int m_MembersCount = 0;
-	int m_HighestSwitchNumber = 0;
-	int m_TeamLocked = 0;
-	int m_Practice = 0;
+	int m_TeamState;
+	int m_MembersCount;
+	int m_HighestSwitchNumber;
+	int m_TeamLocked;
+	int m_Practice;
 };
 
 #endif // GAME_SERVER_SAVE_H

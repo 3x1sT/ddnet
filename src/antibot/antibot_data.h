@@ -1,11 +1,12 @@
 #ifndef ANTIBOT_ANTIBOT_DATA_H
 #define ANTIBOT_ANTIBOT_DATA_H
 
+#include <base/system.h>
 #include <base/vmath.h>
 
 enum
 {
-	ANTIBOT_ABI_VERSION = 9,
+	ANTIBOT_ABI_VERSION = 5,
 
 	ANTIBOT_MSGFLAG_NONVITAL = 1,
 	ANTIBOT_MSGFLAG_FLUSH = 2,
@@ -18,11 +19,6 @@ struct CAntibotMapData
 	int m_Width;
 	int m_Height;
 	unsigned char *m_pTiles;
-};
-
-struct CAntibotPlayerData
-{
-	char m_aAddress[64];
 };
 
 struct CAntibotInputData
@@ -62,7 +58,6 @@ struct CAntibotVersion
 	int m_Size;
 
 	int m_SizeData;
-	int m_SizePlayerData;
 	int m_SizeCharacterData;
 	int m_SizeInputData;
 	int m_SizeMapData;
@@ -74,7 +69,6 @@ struct CAntibotVersion
 		ANTIBOT_ABI_VERSION, \
 			sizeof(CAntibotVersion), \
 			sizeof(CAntibotData), \
-			sizeof(CAntibotPlayerData), \
 			sizeof(CAntibotCharacterData), \
 			sizeof(CAntibotInputData), \
 			sizeof(CAntibotMapData), \
@@ -87,17 +81,14 @@ struct CAntibotData
 
 	int64_t m_Now;
 	int64_t m_Freq;
-	void (*m_pfnKick)(int ClientId, const char *pMessage, void *pUser);
 	void (*m_pfnLog)(const char *pMessage, void *pUser);
-	void (*m_pfnReport)(int ClientId, const char *pMessage, void *pUser);
-	void (*m_pfnSend)(int ClientId, const void *pData, int DataSize, int Flags, void *pUser);
-	void (*m_pfnTeehistorian)(const void *pData, int DataSize, void *pUser);
+	void (*m_pfnReport)(int ClientID, const char *pMessage, void *pUser);
+	void (*m_pfnSend)(int ClientID, const void *pData, int DataSize, int Flags, void *pUser);
 	void *m_pUser;
 };
 struct CAntibotRoundData
 {
 	int m_Tick;
-	CAntibotPlayerData m_aPlayers[ANTIBOT_MAX_CLIENTS];
 	CAntibotCharacterData m_aCharacters[ANTIBOT_MAX_CLIENTS];
 	CAntibotMapData m_Map;
 };

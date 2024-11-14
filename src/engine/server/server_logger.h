@@ -9,13 +9,13 @@ class CServer;
 class CServerLogger : public ILogger
 {
 	CServer *m_pServer = nullptr;
-	CLock m_PendingLock;
+	std::mutex m_PendingLock;
 	std::vector<CLogMessage> m_vPending;
 	std::thread::id m_MainThread;
 
 public:
 	CServerLogger(CServer *pServer);
-	void Log(const CLogMessage *pMessage) override REQUIRES(!m_PendingLock);
+	void Log(const CLogMessage *pMessage) override;
 	// Must be called from the main thread!
 	void OnServerDeletion();
 };

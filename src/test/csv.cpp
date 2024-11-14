@@ -1,7 +1,6 @@
 #include "test.h"
 #include <gtest/gtest.h>
 
-#include <base/system.h>
 #include <engine/shared/csv.h>
 
 static void Expect(int NumColumns, const char *const *ppColumns, const char *pExpected)

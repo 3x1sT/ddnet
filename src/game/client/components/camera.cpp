@@ -3,17 +3,16 @@
 
 #include <engine/shared/config.h>
 
-#include <base/log.h>
 #include <base/math.h>
-#include <base/vmath.h>
 #include <game/client/gameclient.h>
 #include <game/collision.h>
-#include <game/mapitems.h>
 
 #include "camera.h"
 #include "controls.h"
 
 #include <limits>
+
+const float ZoomStep = 0.866025f;
 
 CCamera::CCamera()
 {
@@ -21,15 +20,7 @@ CCamera::CCamera()
 	m_ZoomSet = false;
 	m_Zoom = 1.0f;
 	m_Zooming = false;
-	m_ForceFreeview = false;
-	m_GotoSwitchOffset = 0;
-	m_GotoTeleOffset = 0;
-	m_GotoSwitchLastPos = ivec2(-1, -1);
-	m_GotoTeleLastPos = ivec2(-1, -1);
-
-	mem_zero(m_aLastPos, sizeof(m_aLastPos));
-	m_PrevCenter = vec2(0, 0);
-	m_Center = vec2(0, 0);
+	m_ForceFreeviewPos = vec2(-1, -1);
 }
 
 float CCamera::ZoomProgress(float CurrentTime) const
@@ -40,12 +31,12 @@ float CCamera::ZoomProgress(float CurrentTime) const
 void CCamera::ScaleZoom(float Factor)
 {
 	float CurrentTarget = m_Zooming ? m_ZoomSmoothingTarget : m_Zoom;
-	ChangeZoom(CurrentTarget * Factor, m_pClient->m_Snap.m_SpecInfo.m_Active && GameClient()->m_MultiViewActivated ? g_Config.m_ClMultiViewZoomSmoothness : g_Config.m_ClSmoothZoomTime);
+	ChangeZoom(CurrentTarget * Factor);
 }
 
 float CCamera::MaxZoomLevel()
 {
-	return (g_Config.m_ClLimitMaxZoomLevel) ? ((Graphics()->IsTileBufferingEnabled() ? 240 : 30)) : std::numeric_limits<float>::max();
+	return (g_Config.m_ClLimitMaxZoomLevel) ? ((Graphics()->IsTileBufferingEnabled() ? 60 : 30)) : std::numeric_limits<float>::max();
 }
 
 float CCamera::MinZoomLevel()
@@ -53,7 +44,7 @@ float CCamera::MinZoomLevel()
 	return 0.01f;
 }
 
-void CCamera::ChangeZoom(float Target, int Smoothness)
+void CCamera::ChangeZoom(float Target)
 {
 	if(Target > MaxZoomLevel() || Target < MinZoomLevel())
 	{
@@ -73,7 +64,7 @@ void CCamera::ChangeZoom(float Target, int Smoothness)
 	m_ZoomSmoothingTarget = Target;
 	m_ZoomSmoothing = CCubicBezier::With(Current, Derivative, 0, m_ZoomSmoothingTarget);
 	m_ZoomSmoothingStart = Now;
-	m_ZoomSmoothingEnd = Now + (float)Smoothness / 1000;
+	m_ZoomSmoothingEnd = Now + (float)g_Config.m_ClSmoothZoomTime / 1000;
 
 	m_Zooming = true;
 }
@@ -90,18 +81,12 @@ void CCamera::OnRender()
 		}
 		else
 		{
-			const float OldLevel = m_Zoom;
 			m_Zoom = m_ZoomSmoothing.Evaluate(ZoomProgress(Time));
-			if((OldLevel < m_ZoomSmoothingTarget && m_Zoom > m_ZoomSmoothingTarget) || (OldLevel > m_ZoomSmoothingTarget && m_Zoom < m_ZoomSmoothingTarget))
-			{
-				m_Zoom = m_ZoomSmoothingTarget;
-				m_Zooming = false;
-			}
 		}
 		m_Zoom = clamp(m_Zoom, MinZoomLevel(), MaxZoomLevel());
 	}
 
-	if(!ZoomAllowed())
+	if(!(m_pClient->m_Snap.m_SpecInfo.m_Active || GameClient()->m_GameInfo.m_AllowZoom || Client()->State() == IClient::STATE_DEMOPLAYBACK))
 	{
 		m_ZoomSet = false;
 		m_Zoom = 1.0f;
@@ -129,7 +114,10 @@ void CCamera::OnRender()
 	{
 		if(m_CamType != CAMTYPE_PLAYER)
 		{
-			m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy] = m_aLastPos[g_Config.m_ClDummy];
+			if((m_aLastPos[g_Config.m_ClDummy].x < g_Config.m_ClMouseMinDistance) || (m_aLastPos[g_Config.m_ClDummy].x < g_Config.m_ClDyncamMinDistance))
+				m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy].x = m_aLastPos[g_Config.m_ClDummy].x + g_Config.m_ClMouseMinDistance + g_Config.m_ClDyncamMinDistance;
+			else
+				m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy] = m_aLastPos[g_Config.m_ClDummy];
 			m_pClient->m_Controls.ClampMousePos();
 			m_CamType = CAMTYPE_PLAYER;
 		}
@@ -147,7 +135,7 @@ void CCamera::OnRender()
 			s_SpeedBias += CameraSpeed * DeltaTime;
 			if(g_Config.m_ClDyncam)
 			{
-				s_SpeedBias -= length(m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy] - s_LastMousePos) * std::log10(CameraStabilizingFactor) * 0.02f;
+				s_SpeedBias -= length(m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy] - s_LastMousePos) * log10f(CameraStabilizingFactor) * 0.02f;
 				s_SpeedBias = clamp(s_SpeedBias, 0.5f, CameraSpeed);
 			}
 			else
@@ -179,14 +167,11 @@ void CCamera::OnRender()
 			m_Center = m_pClient->m_LocalCharacterPos + s_aCurrentCameraOffset[g_Config.m_ClDummy];
 	}
 
-	if(m_ForceFreeview && m_CamType == CAMTYPE_SPEC)
+	if(m_ForceFreeviewPos != vec2(-1, -1) && m_CamType == CAMTYPE_SPEC)
 	{
 		m_Center = m_pClient->m_Controls.m_aMousePos[g_Config.m_ClDummy] = m_ForceFreeviewPos;
-		m_ForceFreeview = false;
+		m_ForceFreeviewPos = vec2(-1, -1);
 	}
-	else
-		m_ForceFreeviewPos = m_Center;
-
 	m_PrevCenter = m_Center;
 }
 
@@ -196,194 +181,40 @@ void CCamera::OnConsoleInit()
 	Console()->Register("zoom-", "", CFGFLAG_CLIENT, ConZoomMinus, this, "Zoom decrease");
 	Console()->Register("zoom", "?i", CFGFLAG_CLIENT, ConZoom, this, "Change zoom");
 	Console()->Register("set_view", "i[x]i[y]", CFGFLAG_CLIENT, ConSetView, this, "Set camera position to x and y in the map");
-	Console()->Register("set_view_relative", "i[x]i[y]", CFGFLAG_CLIENT, ConSetViewRelative, this, "Set camera position relative to current view in the map");
-	Console()->Register("goto_switch", "i[number]?i[offset]", CFGFLAG_CLIENT, ConGotoSwitch, this, "View switch found (at offset) with given number");
-	Console()->Register("goto_tele", "i[number]?i[offset]", CFGFLAG_CLIENT, ConGotoTele, this, "View tele found (at offset) with given number");
 }
 
 void CCamera::OnReset()
 {
-	m_Zoom = std::pow(CCamera::ZOOM_STEP, g_Config.m_ClDefaultZoom - 10);
+	m_Zoom = pow(ZoomStep, g_Config.m_ClDefaultZoom - 10);
 	m_Zooming = false;
 }
 
 void CCamera::ConZoomPlus(IConsole::IResult *pResult, void *pUserData)
 {
 	CCamera *pSelf = (CCamera *)pUserData;
-	if(!pSelf->ZoomAllowed())
-		return;
-
-	pSelf->ScaleZoom(CCamera::ZOOM_STEP);
-
-	if(pSelf->GameClient()->m_MultiViewActivated)
-		pSelf->GameClient()->m_MultiViewPersonalZoom++;
+	if(pSelf->m_pClient->m_Snap.m_SpecInfo.m_Active || pSelf->GameClient()->m_GameInfo.m_AllowZoom || pSelf->Client()->State() == IClient::STATE_DEMOPLAYBACK)
+	{
+		pSelf->ScaleZoom(ZoomStep);
+	}
 }
 void CCamera::ConZoomMinus(IConsole::IResult *pResult, void *pUserData)
 {
 	CCamera *pSelf = (CCamera *)pUserData;
-	if(!pSelf->ZoomAllowed())
-		return;
-
-	pSelf->ScaleZoom(1 / CCamera::ZOOM_STEP);
-
-	if(pSelf->GameClient()->m_MultiViewActivated)
-		pSelf->GameClient()->m_MultiViewPersonalZoom--;
+	if(pSelf->m_pClient->m_Snap.m_SpecInfo.m_Active || pSelf->GameClient()->m_GameInfo.m_AllowZoom || pSelf->Client()->State() == IClient::STATE_DEMOPLAYBACK)
+	{
+		pSelf->ScaleZoom(1 / ZoomStep);
+	}
 }
 void CCamera::ConZoom(IConsole::IResult *pResult, void *pUserData)
 {
-	CCamera *pSelf = (CCamera *)pUserData;
-	if(!pSelf->ZoomAllowed())
-		return;
-
 	float TargetLevel = pResult->NumArguments() ? pResult->GetFloat(0) : g_Config.m_ClDefaultZoom;
-	pSelf->ChangeZoom(std::pow(CCamera::ZOOM_STEP, TargetLevel - 10), pSelf->m_pClient->m_Snap.m_SpecInfo.m_Active && pSelf->GameClient()->m_MultiViewActivated ? g_Config.m_ClMultiViewZoomSmoothness : g_Config.m_ClSmoothZoomTime);
-
-	if(pSelf->GameClient()->m_MultiViewActivated && pSelf->m_pClient->m_Snap.m_SpecInfo.m_Active)
-		pSelf->GameClient()->m_MultiViewPersonalZoom = 0;
+	((CCamera *)pUserData)->ChangeZoom(pow(ZoomStep, TargetLevel - 10));
 }
 void CCamera::ConSetView(IConsole::IResult *pResult, void *pUserData)
 {
 	CCamera *pSelf = (CCamera *)pUserData;
 	// wait until free view camera type to update the position
-	pSelf->SetView(ivec2(pResult->GetInteger(0), pResult->GetInteger(1)));
-}
-void CCamera::ConSetViewRelative(IConsole::IResult *pResult, void *pUserData)
-{
-	CCamera *pSelf = (CCamera *)pUserData;
-	// wait until free view camera type to update the position
-	pSelf->SetView(ivec2(pResult->GetInteger(0), pResult->GetInteger(1)), true);
-}
-void CCamera::ConGotoSwitch(IConsole::IResult *pResult, void *pUserData)
-{
-	CCamera *pSelf = (CCamera *)pUserData;
-	pSelf->GotoSwitch(pResult->GetInteger(0), pResult->NumArguments() > 1 ? pResult->GetInteger(1) : -1);
-}
-void CCamera::ConGotoTele(IConsole::IResult *pResult, void *pUserData)
-{
-	CCamera *pSelf = (CCamera *)pUserData;
-	pSelf->GotoTele(pResult->GetInteger(0), pResult->NumArguments() > 1 ? pResult->GetInteger(1) : -1);
-}
-
-void CCamera::SetView(ivec2 Pos, bool Relative)
-{
-	vec2 RealPos = vec2(Pos.x * 32.0, Pos.y * 32.0);
-	vec2 UntestedViewPos = Relative ? m_ForceFreeviewPos + RealPos : RealPos;
-
-	m_ForceFreeview = true;
-
-	m_ForceFreeviewPos = vec2(
-		clamp(UntestedViewPos.x, 200.0f, Collision()->GetWidth() * 32 - 200.0f),
-		clamp(UntestedViewPos.y, 200.0f, Collision()->GetWidth() * 32 - 200.0f));
-}
-
-void CCamera::GotoSwitch(int Number, int Offset)
-{
-	if(Collision()->SwitchLayer() == nullptr)
-		return;
-
-	int Match = -1;
-	ivec2 MatchPos = ivec2(-1, -1);
-
-	auto FindTile = [this, &Match, &MatchPos, &Number, &Offset]() {
-		for(int x = 0; x < Collision()->GetWidth(); x++)
-		{
-			for(int y = 0; y < Collision()->GetHeight(); y++)
-			{
-				int i = y * Collision()->GetWidth() + x;
-				if(Number == Collision()->GetSwitchNumber(i))
-				{
-					Match++;
-					if(Offset != -1)
-					{
-						if(Match == Offset)
-						{
-							MatchPos = ivec2(x, y);
-							m_GotoSwitchOffset = Match;
-							return;
-						}
-						continue;
-					}
-					MatchPos = ivec2(x, y);
-					if(Match == m_GotoSwitchOffset)
-						return;
-				}
-			}
-		}
-	};
-	FindTile();
-
-	if(MatchPos == ivec2(-1, -1))
-		return;
-	if(Match < m_GotoSwitchOffset)
-		m_GotoSwitchOffset = -1;
-	SetView(MatchPos);
-	m_GotoSwitchOffset++;
-}
-
-void CCamera::GotoTele(int Number, int Offset)
-{
-	if(Collision()->TeleLayer() == nullptr)
-		return;
-	Number--;
-
-	if(m_GotoTeleLastNumber != Number)
-		m_GotoTeleLastPos = ivec2(-1, -1);
-
-	ivec2 MatchPos = ivec2(-1, -1);
-	const size_t NumTeles = Collision()->TeleAllSize(Number);
-	if(!NumTeles)
-	{
-		log_error("camera", "No teleporter with number %d found.", Number + 1);
-		return;
-	}
-
-	if(Offset != -1 || m_GotoTeleLastPos == ivec2(-1, -1))
-	{
-		if((size_t)Offset >= NumTeles || Offset < 0)
-			Offset = 0;
-		vec2 Tele = Collision()->TeleAllGet(Number, Offset);
-		MatchPos = ivec2(Tele.x / 32, Tele.y / 32);
-		m_GotoTeleOffset = Offset;
-	}
-	else
-	{
-		bool FullRound = false;
-		do
-		{
-			vec2 Tele = Collision()->TeleAllGet(Number, m_GotoTeleOffset);
-			MatchPos = ivec2(Tele.x / 32, Tele.y / 32);
-			m_GotoTeleOffset++;
-			if((size_t)m_GotoTeleOffset >= NumTeles)
-			{
-				m_GotoTeleOffset = 0;
-				if(FullRound)
-				{
-					MatchPos = m_GotoTeleLastPos;
-					break;
-				}
-				else
-				{
-					FullRound = true;
-				}
-			}
-		} while(distance(m_GotoTeleLastPos, MatchPos) < 10.0f);
-	}
-
-	if(MatchPos == ivec2(-1, -1))
-		return;
-	m_GotoTeleLastPos = MatchPos;
-	m_GotoTeleLastNumber = Number;
-	SetView(MatchPos);
-}
-
-void CCamera::SetZoom(float Target, int Smoothness)
-{
-	ChangeZoom(Target, Smoothness);
-}
-
-bool CCamera::ZoomAllowed() const
-{
-	return GameClient()->m_Snap.m_SpecInfo.m_Active ||
-	       GameClient()->m_GameInfo.m_AllowZoom ||
-	       Client()->State() == IClient::STATE_DEMOPLAYBACK;
+	pSelf->m_ForceFreeviewPos = vec2(
+		clamp(pResult->GetInteger(0) * 32.0f, 200.0f, pSelf->Collision()->GetWidth() * 32 - 200.0f),
+		clamp(pResult->GetInteger(1) * 32.0f, 200.0f, pSelf->Collision()->GetWidth() * 32 - 200.0f));
 }

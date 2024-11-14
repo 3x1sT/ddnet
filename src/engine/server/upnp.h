@@ -1,7 +1,7 @@
 #ifndef ENGINE_SERVER_UPNP_H
 #define ENGINE_SERVER_UPNP_H
 
-#include <base/types.h>
+#include <base/system.h>
 class CUPnP
 {
 	NETADDR m_Addr;

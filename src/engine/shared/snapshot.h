@@ -4,10 +4,7 @@
 #define ENGINE_SHARED_SNAPSHOT_H
 
 #include <cstddef>
-#include <cstdint>
-
-#include <game/generated/protocol.h>
-#include <game/generated/protocol7.h>
+#include <stdint.h>
 
 // CSnapshot
 
@@ -18,28 +15,25 @@ class CSnapshotItem
 	int *Data() { return (int *)(this + 1); }
 
 public:
-	int m_TypeAndId;
+	int m_TypeAndID;
 
 	const int *Data() const { return (int *)(this + 1); }
-	int Type() const { return m_TypeAndId >> 16; }
-	int Id() const { return m_TypeAndId & 0xffff; }
-	int Key() const { return m_TypeAndId; }
-	void Invalidate() { m_TypeAndId = -1; }
+	int Type() const { return m_TypeAndID >> 16; }
+	int ID() const { return m_TypeAndID & 0xffff; }
+	int Key() const { return m_TypeAndID; }
 };
 
 class CSnapshot
 {
 	friend class CSnapshotBuilder;
-	int m_DataSize = 0;
-	int m_NumItems = 0;
+	int m_DataSize;
+	int m_NumItems;
 
 	int *Offsets() const { return (int *)(this + 1); }
 	char *DataStart() const { return (char *)(Offsets() + m_NumItems); }
 
 	size_t OffsetSize() const { return sizeof(int) * m_NumItems; }
 	size_t TotalSize() const { return sizeof(CSnapshot) + OffsetSize() + m_DataSize; }
-
-	static const CSnapshot ms_EmptySnapshot;
 
 public:
 	enum
@@ -52,20 +46,22 @@ public:
 		MAX_SIZE = MAX_PARTS * 1024
 	};
 
+	void Clear()
+	{
+		m_DataSize = 0;
+		m_NumItems = 0;
+	}
 	int NumItems() const { return m_NumItems; }
 	const CSnapshotItem *GetItem(int Index) const;
 	int GetItemSize(int Index) const;
 	int GetItemIndex(int Key) const;
-	void InvalidateItem(int Index);
 	int GetItemType(int Index) const;
 	int GetExternalItemType(int InternalType) const;
-	const void *FindItem(int Type, int Id) const;
+	const void *FindItem(int Type, int ID) const;
 
-	unsigned Crc() const;
-	void DebugDump() const;
+	unsigned Crc();
+	void DebugDump();
 	bool IsValid(size_t ActualSize) const;
-
-	static const CSnapshot *EmptySnapshot() { return &ms_EmptySnapshot; }
 };
 
 // CSnapshotDelta
@@ -88,12 +84,11 @@ private:
 		MAX_NETOBJSIZES = 64
 	};
 	short m_aItemSizes[MAX_NETOBJSIZES];
-	short m_aItemSizes7[MAX_NETOBJSIZES];
 	int m_aSnapshotDataRate[CSnapshot::MAX_TYPE + 1];
 	int m_aSnapshotDataUpdates[CSnapshot::MAX_TYPE + 1];
 	CData m_Empty;
 
-	static void UndiffItem(const int *pPast, const int *pDiff, int *pOut, int Size, int *pDataRate);
+	static void UndiffItem(const int *pPast, int *pDiff, int *pOut, int Size, int *pDataRate);
 
 public:
 	static int DiffItem(const int *pPast, const int *pCurrent, int *pOut, int Size);
@@ -101,12 +96,10 @@ public:
 	CSnapshotDelta(const CSnapshotDelta &Old);
 	int GetDataRate(int Index) const { return m_aSnapshotDataRate[Index]; }
 	int GetDataUpdates(int Index) const { return m_aSnapshotDataUpdates[Index]; }
-	void SetStaticsize(int ItemType, size_t Size);
-	void SetStaticsize7(int ItemType, size_t Size);
+	void SetStaticsize(int ItemType, int Size);
 	const CData *EmptyDelta() const;
-	int CreateDelta(const CSnapshot *pFrom, const CSnapshot *pTo, void *pDstData);
-	int UnpackDelta(const CSnapshot *pFrom, CSnapshot *pTo, const void *pSrcData, int DataSize, bool Sixup);
-	int DebugDumpDelta(const void *pSrcData, int DataSize);
+	int CreateDelta(class CSnapshot *pFrom, class CSnapshot *pTo, void *pDstData);
+	int UnpackDelta(class CSnapshot *pFrom, class CSnapshot *pTo, const void *pSrcData, int DataSize);
 };
 
 // CSnapshotStorage
@@ -138,8 +131,8 @@ public:
 	void Init();
 	void PurgeAll();
 	void PurgeUntil(int Tick);
-	void Add(int Tick, int64_t Tagtime, size_t DataSize, const void *pData, size_t AltDataSize, const void *pAltData);
-	int Get(int Tick, int64_t *pTagtime, const CSnapshot **ppData, const CSnapshot **ppAltData) const;
+	void Add(int Tick, int64_t Tagtime, int DataSize, void *pData, int AltDataSize, void *pAltData);
+	int Get(int Tick, int64_t *pTagtime, CSnapshot **ppData, CSnapshot **ppAltData);
 };
 
 class CSnapshotBuilder
@@ -159,18 +152,17 @@ class CSnapshotBuilder
 	int m_NumExtendedItemTypes;
 
 	void AddExtendedItemType(int Index);
-	int GetExtendedItemTypeIndex(int TypeId);
-	int GetTypeFromIndex(int Index) const;
+	int GetExtendedItemTypeIndex(int TypeID);
+	int GetTypeFromIndex(int Index);
 
-	bool m_Sixup = false;
+	bool m_Sixup;
 
 public:
 	CSnapshotBuilder();
 
 	void Init(bool Sixup = false);
-	void Init7(const CSnapshot *pSnapshot);
 
-	void *NewItem(int Type, int Id, int Size);
+	void *NewItem(int Type, int ID, int Size);
 
 	CSnapshotItem *GetItem(int Index);
 	int *GetItemData(int Key);

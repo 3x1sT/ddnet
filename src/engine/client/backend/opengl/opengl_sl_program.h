@@ -22,15 +22,15 @@ public:
 	void CreateProgram();
 	void DeleteProgram();
 
-	bool AddShader(CGLSL *pShader) const;
+	bool AddShader(CGLSL *pShader);
 
 	void LinkProgram();
-	void UseProgram() const;
-	TWGLuint GetProgramId() const;
+	void UseProgram();
+	TWGLuint GetProgramID();
 
-	void DetachShader(CGLSL *pShader) const;
-	void DetachShaderById(TWGLuint ShaderId) const;
-	void DetachAllShaders() const;
+	void DetachShader(CGLSL *pShader);
+	void DetachShaderByID(TWGLuint ShaderID);
+	void DetachAllShaders();
 
 	//Support various types
 	void SetUniformVec2(int Loc, int Count, const float *pValue);
@@ -41,13 +41,13 @@ public:
 	void SetUniform(int Loc, int Count, const float *pValues);
 
 	//for performance reason we do not use SetUniform with using strings... save the Locations of the variables instead
-	int GetUniformLoc(const char *pName) const;
+	int GetUniformLoc(const char *pName);
 
 	CGLSLProgram();
 	virtual ~CGLSLProgram();
 
 protected:
-	TWGLuint m_ProgramId;
+	TWGLuint m_ProgramID;
 	bool m_IsLinked;
 };
 
@@ -155,7 +155,6 @@ public:
 	int m_LocColor;
 	int m_LocOffset;
 	int m_LocDir;
-	int m_LocScale = -1;
 	int m_LocNum;
 	int m_LocJumpIndex;
 };

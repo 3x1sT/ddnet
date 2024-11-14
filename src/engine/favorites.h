@@ -12,7 +12,7 @@ class IConfigManager;
 
 class IFavorites : public IInterface
 {
-	MACRO_INTERFACE("favorites")
+	MACRO_INTERFACE("favorites", 0)
 
 protected:
 	virtual void OnConfigSave(IConfigManager *pConfigManager) = 0;

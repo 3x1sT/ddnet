@@ -1,5 +1,5 @@
 import sys
-from .datatypes import EmitDefinition
+from .datatypes import EmitDefinition, EmitTypeDeclaration
 from . import content # pylint: disable=no-name-in-module
 from . import network # pylint: disable=no-name-in-module
 
@@ -60,8 +60,19 @@ def main():
 	if gen_client_content_header or gen_server_content_header:
 		# print some includes
 		print('#include <engine/graphics.h>')
-		print('#include "data_types.h"')
+		print('#include <engine/sound.h>')
 		print("namespace client_data7 {")
+
+		# emit the type declarations
+		with open("datasrc/content.py", "rb") as f:
+			contentlines = f.readlines()
+		order = []
+		for line in contentlines:
+			line = line.strip()
+			if line[:6] == "class ".encode() and "(Struct)".encode() in line:
+				order += [line.split()[1].split("(".encode())[0].decode("ascii")]
+		for name in order:
+			EmitTypeDeclaration(content.__dict__[name])
 
 		# the container pointer
 		print('extern CDataContainer *g_pData;')
@@ -171,7 +182,6 @@ def main():
 		lines = []
 
 		lines += ['#include "protocol7.h"']
-		lines += ['#include <base/system.h>']
 		lines += ['#include <engine/shared/packer.h>']
 		lines += ['#include <engine/shared/protocol.h>']
 
@@ -261,7 +271,7 @@ def main():
 		lines += ['\t{']
 
 		for item in network.Objects:
-			for line in item.emit_validate(network.Objects):
+			for line in item.emit_validate():
 				lines += ["\t" + line]
 			lines += ['\t']
 		lines += ['\t}']

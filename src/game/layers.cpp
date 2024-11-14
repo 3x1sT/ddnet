@@ -3,25 +3,47 @@
 #include "layers.h"
 
 #include "mapitems.h"
+#include "mapitems_ex.h"
 
 #include <engine/map.h>
 
 CLayers::CLayers()
 {
-	Unload();
+	m_GroupsNum = 0;
+	m_GroupsStart = 0;
+	m_GroupsExNum = 0;
+	m_GroupsExStart = 0;
+	m_LayersNum = 0;
+	m_LayersStart = 0;
+	m_pGameGroup = 0;
+	m_pGameGroupEx = 0;
+	m_pGameLayer = 0;
+	m_pMap = 0;
+
+	m_pTeleLayer = 0;
+	m_pSpeedupLayer = 0;
+	m_pFrontLayer = 0;
+	m_pSwitchLayer = 0;
+	m_pTuneLayer = 0;
 }
 
 void CLayers::Init(class IKernel *pKernel)
 {
-	Unload();
-
 	m_pMap = pKernel->RequestInterface<IMap>();
 	m_pMap->GetType(MAPITEMTYPE_GROUP, &m_GroupsStart, &m_GroupsNum);
+	m_pMap->GetType(MAPITEMTYPE_GROUP_EX, &m_GroupsExStart, &m_GroupsExNum);
 	m_pMap->GetType(MAPITEMTYPE_LAYER, &m_LayersStart, &m_LayersNum);
+
+	m_pTeleLayer = 0;
+	m_pSpeedupLayer = 0;
+	m_pFrontLayer = 0;
+	m_pSwitchLayer = 0;
+	m_pTuneLayer = 0;
 
 	for(int g = 0; g < NumGroups(); g++)
 	{
 		CMapItemGroup *pGroup = GetGroup(g);
+		CMapItemGroupEx *pGroupEx = GetGroupEx(g);
 		for(int l = 0; l < pGroup->m_NumLayers; l++)
 		{
 			CMapItemLayer *pLayer = GetLayer(pGroup->m_StartLayer + l);
@@ -29,12 +51,12 @@ void CLayers::Init(class IKernel *pKernel)
 			if(pLayer->m_Type == LAYERTYPE_TILES)
 			{
 				CMapItemLayerTilemap *pTilemap = reinterpret_cast<CMapItemLayerTilemap *>(pLayer);
-				bool IsEntities = false;
 
 				if(pTilemap->m_Flags & TILESLAYERFLAG_GAME)
 				{
 					m_pGameLayer = pTilemap;
 					m_pGameGroup = pGroup;
+					m_pGameGroupEx = pGroupEx;
 
 					// make sure the game group has standard settings
 					m_pGameGroup->m_OffsetX = 0;
@@ -51,7 +73,9 @@ void CLayers::Init(class IKernel *pKernel)
 						m_pGameGroup->m_ClipH = 0;
 					}
 
-					IsEntities = true;
+					if(pGroupEx)
+						pGroupEx->m_ParallaxZoom = 100;
+
 					//break;
 				}
 				if(pTilemap->m_Flags & TILESLAYERFLAG_TELE)
@@ -61,7 +85,6 @@ void CLayers::Init(class IKernel *pKernel)
 						pTilemap->m_Tele = *((int *)(pTilemap) + 15);
 					}
 					m_pTeleLayer = pTilemap;
-					IsEntities = true;
 				}
 				if(pTilemap->m_Flags & TILESLAYERFLAG_SPEEDUP)
 				{
@@ -70,7 +93,6 @@ void CLayers::Init(class IKernel *pKernel)
 						pTilemap->m_Speedup = *((int *)(pTilemap) + 16);
 					}
 					m_pSpeedupLayer = pTilemap;
-					IsEntities = true;
 				}
 				if(pTilemap->m_Flags & TILESLAYERFLAG_FRONT)
 				{
@@ -79,7 +101,6 @@ void CLayers::Init(class IKernel *pKernel)
 						pTilemap->m_Front = *((int *)(pTilemap) + 17);
 					}
 					m_pFrontLayer = pTilemap;
-					IsEntities = true;
 				}
 				if(pTilemap->m_Flags & TILESLAYERFLAG_SWITCH)
 				{
@@ -88,7 +109,6 @@ void CLayers::Init(class IKernel *pKernel)
 						pTilemap->m_Switch = *((int *)(pTilemap) + 18);
 					}
 					m_pSwitchLayer = pTilemap;
-					IsEntities = true;
 				}
 				if(pTilemap->m_Flags & TILESLAYERFLAG_TUNE)
 				{
@@ -97,12 +117,6 @@ void CLayers::Init(class IKernel *pKernel)
 						pTilemap->m_Tune = *((int *)(pTilemap) + 19);
 					}
 					m_pTuneLayer = pTilemap;
-					IsEntities = true;
-				}
-
-				if(IsEntities)
-				{ // Ensure default color for entities layers
-					pTilemap->m_Color = CColor(255, 255, 255, 255);
 				}
 			}
 		}
@@ -113,15 +127,22 @@ void CLayers::Init(class IKernel *pKernel)
 
 void CLayers::InitBackground(class IMap *pMap)
 {
-	Unload();
-
 	m_pMap = pMap;
 	m_pMap->GetType(MAPITEMTYPE_GROUP, &m_GroupsStart, &m_GroupsNum);
+	m_pMap->GetType(MAPITEMTYPE_GROUP_EX, &m_GroupsExStart, &m_GroupsExNum);
 	m_pMap->GetType(MAPITEMTYPE_LAYER, &m_LayersStart, &m_LayersNum);
+
+	//following is here to prevent crash using standard map as background
+	m_pTeleLayer = 0;
+	m_pSpeedupLayer = 0;
+	m_pFrontLayer = 0;
+	m_pSwitchLayer = 0;
+	m_pTuneLayer = 0;
 
 	for(int g = 0; g < NumGroups(); g++)
 	{
 		CMapItemGroup *pGroup = GetGroup(g);
+		CMapItemGroupEx *pGroupEx = GetGroupEx(g);
 		for(int l = 0; l < pGroup->m_NumLayers; l++)
 		{
 			CMapItemLayer *pLayer = GetLayer(pGroup->m_StartLayer + l);
@@ -134,6 +155,7 @@ void CLayers::InitBackground(class IMap *pMap)
 				{
 					m_pGameLayer = pTilemap;
 					m_pGameGroup = pGroup;
+					m_pGameGroupEx = pGroupEx;
 
 					// make sure the game group has standard settings
 					m_pGameGroup->m_OffsetX = 0;
@@ -149,6 +171,10 @@ void CLayers::InitBackground(class IMap *pMap)
 						m_pGameGroup->m_ClipW = 0;
 						m_pGameGroup->m_ClipH = 0;
 					}
+
+					if(pGroupEx)
+						pGroupEx->m_ParallaxZoom = 100;
+
 					//We don't care about tile layers.
 				}
 			}
@@ -156,24 +182,6 @@ void CLayers::InitBackground(class IMap *pMap)
 	}
 
 	InitTilemapSkip();
-}
-
-void CLayers::Unload()
-{
-	m_GroupsNum = 0;
-	m_GroupsStart = 0;
-	m_LayersNum = 0;
-	m_LayersStart = 0;
-
-	m_pGameGroup = nullptr;
-	m_pGameLayer = nullptr;
-	m_pMap = nullptr;
-
-	m_pTeleLayer = nullptr;
-	m_pSpeedupLayer = nullptr;
-	m_pFrontLayer = nullptr;
-	m_pSwitchLayer = nullptr;
-	m_pTuneLayer = nullptr;
 }
 
 void CLayers::InitTilemapSkip()
@@ -212,10 +220,19 @@ void CLayers::InitTilemapSkip()
 
 CMapItemGroup *CLayers::GetGroup(int Index) const
 {
-	return static_cast<CMapItemGroup *>(m_pMap->GetItem(m_GroupsStart + Index));
+	return static_cast<CMapItemGroup *>(m_pMap->GetItem(m_GroupsStart + Index, 0, 0));
+}
+
+CMapItemGroupEx *CLayers::GetGroupEx(int Index) const
+{
+	// Map doesn't have GroupEx items or GroupEx indexes don't match groups for some other reason. Lets turn them off completely to be safe.
+	if(m_GroupsExNum != m_GroupsNum)
+		return nullptr;
+
+	return static_cast<CMapItemGroupEx *>(m_pMap->GetItem(m_GroupsExStart + Index, 0, 0));
 }
 
 CMapItemLayer *CLayers::GetLayer(int Index) const
 {
-	return static_cast<CMapItemLayer *>(m_pMap->GetItem(m_LayersStart + Index));
+	return static_cast<CMapItemLayer *>(m_pMap->GetItem(m_LayersStart + Index, 0, 0));
 }

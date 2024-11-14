@@ -1,6 +1,5 @@
 #include "serverbrowser_ping_cache.h"
 
-#include <base/system.h>
 #include <engine/console.h>
 #include <engine/sqlite.h>
 
@@ -20,7 +19,7 @@ public:
 	};
 
 	CServerBrowserPingCache(IConsole *pConsole, IStorage *pStorage);
-	~CServerBrowserPingCache() override = default;
+	virtual ~CServerBrowserPingCache() = default;
 
 	void Load() override;
 

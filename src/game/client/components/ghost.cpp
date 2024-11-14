@@ -106,7 +106,7 @@ void CGhost::CGhostPath::SetSize(int Items)
 	m_NumItems = Items;
 }
 
-void CGhost::CGhostPath::Add(const CGhostCharacter &Char)
+void CGhost::CGhostPath::Add(CGhostCharacter Char)
 {
 	SetSize(m_NumItems + 1);
 	*Get(m_NumItems - 1) = Char;
@@ -133,13 +133,10 @@ void CGhost::GetPath(char *pBuf, int Size, const char *pPlayerName, int Time) co
 	str_copy(aPlayerName, pPlayerName);
 	str_sanitize_filename(aPlayerName);
 
-	char aTimestamp[32];
-	str_timestamp_format(aTimestamp, sizeof(aTimestamp), FORMAT_NOSPACE);
-
 	if(Time < 0)
 		str_format(pBuf, Size, "%s/%s_%s_%s_tmp_%d.gho", ms_pGhostDir, pMap, aPlayerName, aSha256, pid());
 	else
-		str_format(pBuf, Size, "%s/%s_%s_%d.%03d_%s_%s.gho", ms_pGhostDir, pMap, aPlayerName, Time / 1000, Time % 1000, aTimestamp, aSha256);
+		str_format(pBuf, Size, "%s/%s_%s_%d.%03d_%s.gho", ms_pGhostDir, pMap, aPlayerName, Time / 1000, Time % 1000, aSha256);
 }
 
 void CGhost::AddInfos(const CNetObj_Character *pChar, const CNetObj_DDNetCharacter *pDDnetChar)
@@ -216,7 +213,7 @@ void CGhost::CheckStartLocal(bool Predicted)
 
 		vec2 PrevPos = m_pClient->m_PredictedPrevChar.m_Pos;
 		vec2 Pos = m_pClient->m_PredictedChar.m_Pos;
-		if(((!m_Rendering && RenderTick == -1) || m_AllowRestart) && GameClient()->RaceHelper()->IsStart(PrevPos, Pos))
+		if(((!m_Rendering && RenderTick == -1) || m_AllowRestart) && CRaceHelper::IsStart(m_pClient, PrevPos, Pos))
 		{
 			if(m_Rendering && !m_RenderingStartedByServer) // race restarted: stop rendering
 				StopRender();
@@ -240,7 +237,7 @@ void CGhost::CheckStartLocal(bool Predicted)
 			int TickDiff = CurTick - PrevTick;
 			for(int i = 0; i < TickDiff; i++)
 			{
-				if(GameClient()->RaceHelper()->IsStart(mix(PrevPos, Pos, (float)i / TickDiff), mix(PrevPos, Pos, (float)(i + 1) / TickDiff)))
+				if(CRaceHelper::IsStart(m_pClient, mix(PrevPos, Pos, (float)i / TickDiff), mix(PrevPos, Pos, (float)(i + 1) / TickDiff)))
 				{
 					RecordTick = PrevTick + i + 1;
 					if(!m_AllowRestart)
@@ -287,7 +284,7 @@ void CGhost::OnNewSnapshot()
 			CheckStart();
 
 		if(m_Recording)
-			AddInfos(m_pClient->m_Snap.m_pLocalCharacter, (m_pClient->m_Snap.m_LocalClientId != -1 && m_pClient->m_Snap.m_aCharacters[m_pClient->m_Snap.m_LocalClientId].m_HasExtendedData) ? &m_pClient->m_Snap.m_aCharacters[m_pClient->m_Snap.m_LocalClientId].m_ExtendedData : nullptr);
+			AddInfos(m_pClient->m_Snap.m_pLocalCharacter, (m_pClient->m_Snap.m_LocalClientID != -1 && m_pClient->m_Snap.m_aCharacters[m_pClient->m_Snap.m_LocalClientID].m_HasExtendedData) ? &m_pClient->m_Snap.m_aCharacters[m_pClient->m_Snap.m_LocalClientID].m_ExtendedData : nullptr);
 	}
 
 	// Record m_LastRaceTick for g_Config.m_ClConfirmDisconnect/QuitTime anyway
@@ -311,9 +308,6 @@ void CGhost::OnNewPredictedSnapshot()
 
 void CGhost::OnRender()
 {
-	if(Client()->State() != IClient::STATE_ONLINE && Client()->State() != IClient::STATE_DEMOPLAYBACK)
-		return;
-
 	// Play the ghost
 	if(!m_Rendering || !g_Config.m_ClRaceShowGhost)
 		return;
@@ -388,8 +382,8 @@ void CGhost::OnRender()
 
 void CGhost::InitRenderInfos(CGhostItem *pGhost)
 {
-	char aSkinName[24];
-	IntsToStr(&pGhost->m_Skin.m_Skin0, 6, aSkinName, std::size(aSkinName));
+	char aSkinName[64];
+	IntsToStr(&pGhost->m_Skin.m_Skin0, 6, aSkinName);
 	CTeeRenderInfo *pRenderInfo = &pGhost->m_RenderInfo;
 
 	const CSkin *pSkin = m_pClient->m_Skins.Find(aSkinName);
@@ -418,7 +412,7 @@ void CGhost::StartRecord(int Tick)
 	m_CurGhost.Reset();
 	m_CurGhost.m_StartTick = Tick;
 
-	const CGameClient::CClientData *pData = &m_pClient->m_aClients[m_pClient->m_Snap.m_LocalClientId];
+	const CGameClient::CClientData *pData = &m_pClient->m_aClients[m_pClient->m_Snap.m_LocalClientID];
 	str_copy(m_CurGhost.m_aPlayer, Client()->PlayerName());
 	GetGhostSkin(&m_CurGhost.m_Skin, pData->m_aSkinName, pData->m_UseCustomColor, pData->m_ColorBody, pData->m_ColorFeet);
 	InitRenderInfos(&m_CurGhost);
@@ -433,15 +427,15 @@ void CGhost::StopRecord(int Time)
 		GhostRecorder()->Stop(m_CurGhost.m_Path.Size(), Time);
 
 	CMenus::CGhostItem *pOwnGhost = m_pClient->m_Menus.GetOwnGhost();
-	if(Time > 0 && (!pOwnGhost || Time < pOwnGhost->m_Time || !g_Config.m_ClRaceGhostSaveBest))
+	if(Time > 0 && (!pOwnGhost || Time < pOwnGhost->m_Time))
 	{
+		if(pOwnGhost && pOwnGhost->Active())
+			Unload(pOwnGhost->m_Slot);
+
 		// add to active ghosts
 		int Slot = GetSlot();
-		if(Slot != -1 && (!pOwnGhost || Time < pOwnGhost->m_Time))
+		if(Slot != -1)
 			m_aActiveGhosts[Slot] = std::move(m_CurGhost);
-
-		if(pOwnGhost && pOwnGhost->Active() && Time < pOwnGhost->m_Time)
-			Unload(pOwnGhost->m_Slot);
 
 		// create ghost item
 		CMenus::CGhostItem Item;
@@ -614,7 +608,7 @@ void CGhost::OnConsoleInit()
 	m_pGhostLoader = Kernel()->RequestInterface<IGhostLoader>();
 	m_pGhostRecorder = Kernel()->RequestInterface<IGhostRecorder>();
 
-	Console()->Register("gplay", "", CFGFLAG_CLIENT, ConGPlay, this, "Start playback of ghosts");
+	Console()->Register("gplay", "", CFGFLAG_CLIENT, ConGPlay, this, "");
 }
 
 void CGhost::OnMessage(int MsgType, void *pRawMsg)
@@ -623,7 +617,7 @@ void CGhost::OnMessage(int MsgType, void *pRawMsg)
 	if(MsgType == NETMSGTYPE_SV_KILLMSG)
 	{
 		CNetMsg_Sv_KillMsg *pMsg = (CNetMsg_Sv_KillMsg *)pRawMsg;
-		if(pMsg->m_Victim == m_pClient->m_Snap.m_LocalClientId)
+		if(pMsg->m_Victim == m_pClient->m_Snap.m_LocalClientID)
 		{
 			if(m_Recording)
 				StopRecord();
@@ -631,28 +625,14 @@ void CGhost::OnMessage(int MsgType, void *pRawMsg)
 			m_LastDeathTick = Client()->GameTick(g_Config.m_ClDummy);
 		}
 	}
-	else if(MsgType == NETMSGTYPE_SV_KILLMSGTEAM)
-	{
-		CNetMsg_Sv_KillMsgTeam *pMsg = (CNetMsg_Sv_KillMsgTeam *)pRawMsg;
-		for(int i = 0; i < MAX_CLIENTS; i++)
-		{
-			if(m_pClient->m_Teams.Team(i) == pMsg->m_Team && i == m_pClient->m_Snap.m_LocalClientId)
-			{
-				if(m_Recording)
-					StopRecord();
-				StopRender();
-				m_LastDeathTick = Client()->GameTick(g_Config.m_ClDummy);
-			}
-		}
-	}
 	else if(MsgType == NETMSGTYPE_SV_CHAT)
 	{
 		CNetMsg_Sv_Chat *pMsg = (CNetMsg_Sv_Chat *)pRawMsg;
-		if(pMsg->m_ClientId == -1 && m_Recording)
+		if(pMsg->m_ClientID == -1 && m_Recording)
 		{
 			char aName[MAX_NAME_LENGTH];
 			int Time = CRaceHelper::TimeFromFinishMessage(pMsg->m_pMessage, aName, sizeof(aName));
-			if(Time > 0 && m_pClient->m_Snap.m_LocalClientId >= 0 && str_comp(aName, m_pClient->m_aClients[m_pClient->m_Snap.m_LocalClientId].m_aName) == 0)
+			if(Time > 0 && m_pClient->m_Snap.m_LocalClientID >= 0 && str_comp(aName, m_pClient->m_aClients[m_pClient->m_Snap.m_LocalClientID].m_aName) == 0)
 			{
 				StopRecord(Time);
 				StopRender();
@@ -682,37 +662,35 @@ void CGhost::OnMapLoad()
 	m_AllowRestart = false;
 }
 
-int CGhost::GetLastRaceTick() const
+int CGhost::GetLastRaceTick()
 {
 	return m_LastRaceTick;
 }
 
-void CGhost::OnRefreshSkins()
+void CGhost::RefindSkin()
 {
-	const auto &&RefindSkin = [&](auto &Ghost) {
-		if(Ghost.Empty())
-			return;
-		char aSkinName[24];
-		IntsToStr(&Ghost.m_Skin.m_Skin0, 6, aSkinName, std::size(aSkinName));
-		CTeeRenderInfo *pRenderInfo = &Ghost.m_RenderInfo;
+	char aSkinName[64];
+	for(auto &Ghost : m_aActiveGhosts)
+	{
+		IntsToStr(&Ghost.m_Skin.m_Skin0, 6, aSkinName);
 		if(aSkinName[0] != '\0')
 		{
+			CTeeRenderInfo *pRenderInfo = &Ghost.m_RenderInfo;
+
 			const CSkin *pSkin = m_pClient->m_Skins.Find(aSkinName);
 			pRenderInfo->m_OriginalRenderSkin = pSkin->m_OriginalSkin;
 			pRenderInfo->m_ColorableRenderSkin = pSkin->m_ColorableSkin;
-			pRenderInfo->m_BloodColor = pSkin->m_BloodColor;
 			pRenderInfo->m_SkinMetrics = pSkin->m_Metrics;
 		}
-		else
-		{
-			pRenderInfo->m_OriginalRenderSkin.Reset();
-			pRenderInfo->m_ColorableRenderSkin.Reset();
-		}
-	};
-
-	for(auto &Ghost : m_aActiveGhosts)
-	{
-		RefindSkin(Ghost);
 	}
-	RefindSkin(m_CurGhost);
+	IntsToStr(&m_CurGhost.m_Skin.m_Skin0, 6, aSkinName);
+	if(aSkinName[0] != '\0')
+	{
+		CTeeRenderInfo *pRenderInfo = &m_CurGhost.m_RenderInfo;
+
+		const CSkin *pSkin = m_pClient->m_Skins.Find(aSkinName);
+		pRenderInfo->m_OriginalRenderSkin = pSkin->m_OriginalSkin;
+		pRenderInfo->m_ColorableRenderSkin = pSkin->m_ColorableSkin;
+		pRenderInfo->m_SkinMetrics = pSkin->m_Metrics;
+	}
 }

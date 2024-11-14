@@ -1,8 +1,9 @@
 #ifndef ENGINE_SHARED_NETBAN_H
 #define ENGINE_SHARED_NETBAN_H
 
-#include <base/system.h>
 #include <engine/console.h>
+
+#include <base/system.h>
 
 inline int NetComp(const NETADDR *pAddr1, const NETADDR *pAddr2)
 {
@@ -65,7 +66,7 @@ protected:
 		int m_Hash;
 		int m_HashIndex; // matching parts for ranges, 0 for addr
 
-		CNetHash() = default;
+		CNetHash() {}
 		CNetHash(const NETADDR *pAddr);
 		CNetHash(const CNetRange *pRange);
 
@@ -77,11 +78,10 @@ protected:
 		enum
 		{
 			EXPIRES_NEVER = -1,
-			REASON_LENGTH = 128,
+			REASON_LENGTH = 64,
 		};
-		int64_t m_Expires;
+		int m_Expires;
 		char m_aReason[REASON_LENGTH];
-		bool m_VerbatimReason;
 	};
 
 	template<class T>
@@ -139,8 +139,6 @@ protected:
 		CBan<CDataType> *m_pFirstFree;
 		CBan<CDataType> *m_pFirstUsed;
 		int m_CountUsed;
-
-		void InsertUsed(CBan<CDataType> *pBan);
 	};
 
 	typedef CBanPool<NETADDR, 1> CBanAddrPool;
@@ -151,7 +149,7 @@ protected:
 	template<class T>
 	void MakeBanInfo(const CBan<T> *pBan, char *pBuf, unsigned BuffSize, int Type) const;
 	template<class T>
-	int Ban(T *pBanPool, const typename T::CDataType *pData, int Seconds, const char *pReason, bool VerbatimReason);
+	int Ban(T *pBanPool, const typename T::CDataType *pData, int Seconds, const char *pReason);
 	template<class T>
 	int Unban(T *pBanPool, const typename T::CDataType *pData);
 
@@ -159,7 +157,7 @@ protected:
 	class IStorage *m_pStorage;
 	CBanAddrPool m_BanAddrPool;
 	CBanRangePool m_BanRangePool;
-	NETADDR m_LocalhostIpV4, m_LocalhostIpV6;
+	NETADDR m_LocalhostIPV4, m_LocalhostIPV6;
 
 public:
 	enum
@@ -177,7 +175,7 @@ public:
 	void Init(class IConsole *pConsole, class IStorage *pStorage);
 	void Update();
 
-	virtual int BanAddr(const NETADDR *pAddr, int Seconds, const char *pReason, bool VerbatimReason);
+	virtual int BanAddr(const NETADDR *pAddr, int Seconds, const char *pReason);
 	virtual int BanRange(const CNetRange *pRange, int Seconds, const char *pReason);
 	int UnbanByAddr(const NETADDR *pAddr);
 	int UnbanByRange(const CNetRange *pRange);
@@ -228,7 +226,7 @@ void CNetBan::MakeBanInfo(const CBan<T> *pBan, char *pBuf, unsigned BuffSize, in
 	}
 
 	// add info part
-	if(!pBan->m_Info.m_VerbatimReason && pBan->m_Info.m_Expires != CBanInfo::EXPIRES_NEVER)
+	if(pBan->m_Info.m_Expires != CBanInfo::EXPIRES_NEVER)
 	{
 		int Mins = ((pBan->m_Info.m_Expires - time_timestamp()) + 59) / 60;
 		if(Mins <= 1)

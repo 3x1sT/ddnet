@@ -11,7 +11,6 @@ bundle/
 .DS_Store
 .ninja_deps
 .ninja_log
-CACHEDIR.TAG
 CMakeCache.txt
 CMakeFiles
 CMakeSettings*
@@ -21,12 +20,9 @@ CTestTestfile.cmake
 Debug
 Makefile
 Release
-SAN.*
 _CPack_Packages/
 build.ninja
-checksummed_*
 cmake_install.cmake
-debug
 gmock.pc
 gmock_main.pc
 googletest-build/
@@ -37,14 +33,12 @@ gtest_main.pc
 install_manifest*.txt
 ninja_package
 pack_*/
-release
 rules.ninja
+SAN.*
 testrunner\[1\]_include.cmake
+vulkan_shaders_sha256.txt
 
 /SDL2.framework
-
-# Android
-local.properties
 
 # Ignore all the generated executables without extensions (for non-Windows
 # systems).
@@ -56,7 +50,6 @@ libsteam_api.a
 config_retrieve
 config_store
 crapnet
-demo_extract_chat
 dilate
 dummy_map
 fake_server
@@ -93,20 +86,16 @@ target
 .cache
 .cproject
 .cmake
-.gdb_history
 .idea
 .project
 .settings
 .vs
 .vscode
 compile_commands.json
-cmake-build-*/*
 cscope.files
 cscope.out
 out
 tags
-# don't ignore this, it's used for the vscode workspace that ddnet provides
-!ddnet-cmake-tools-kits.json
 
 # bam ignores
 /.bam
@@ -123,6 +112,7 @@ tags
 *.exe
 *.fifo
 *.filters
+*.json
 *.lnk
 *.log
 *.opensdf
@@ -134,10 +124,7 @@ tags
 *.sdf
 *.sln
 *.so
-*.spv
 *.sqlite
-*.sqlite-shm
-*.sqlite-wal
 *.suo
 *.swp
 *.tar.gz
