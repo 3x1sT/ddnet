@@ -4,13 +4,14 @@
 #include <game/client/components/background.h>
 #include <game/client/components/camera.h>
 
+#include <array>
 #include <chrono>
 #include <string>
 #include <vector>
 
 class CMenuMap : public CBackgroundEngineMap
 {
-	MACRO_INTERFACE("menu_enginemap", 0)
+	MACRO_INTERFACE("menu_enginemap")
 };
 
 // themes
@@ -56,18 +57,18 @@ public:
 		POS_BROWSER_INTERNET,
 		POS_BROWSER_LAN,
 		POS_BROWSER_FAVORITES,
-		POS_BROWSER_CUSTOM,
-		POS_BROWSER_CUSTOM0 = POS_BROWSER_CUSTOM, // ddnet tab
-		POS_BROWSER_CUSTOM1, // kog tab
+		POS_BROWSER_CUSTOM0,
+		POS_BROWSER_CUSTOM1,
 		POS_BROWSER_CUSTOM2,
 		POS_BROWSER_CUSTOM3,
+		POS_BROWSER_CUSTOM4,
 		POS_RESERVED0,
 		POS_RESERVED1,
 		POS_RESERVED2,
 
 		NUM_POS,
 
-		POS_BROWSER_CUSTOM_NUM = (POS_BROWSER_CUSTOM3 - POS_BROWSER_CUSTOM0) + 1,
+		POS_BROWSER_CUSTOM_NUM = (POS_BROWSER_CUSTOM4 - POS_BROWSER_CUSTOM0) + 1,
 		POS_SETTINGS_RESERVED_NUM = (POS_SETTINGS_RESERVED1 - POS_SETTINGS_RESERVED0) + 1,
 		POS_RESERVED_NUM = (POS_RESERVED2 - POS_RESERVED0) + 1,
 	};
@@ -81,10 +82,10 @@ public:
 
 	CBackgroundEngineMap *CreateBGMap() override;
 
-	vec2 m_MenuCenter;
 	vec2 m_RotationCenter;
-	vec2 m_aPositions[NUM_POS];
+	std::array<vec2, NUM_POS> m_aPositions;
 	int m_CurrentPosition;
+	vec2 m_CurrentDirection = vec2(1.0f, 0.0f);
 	vec2 m_AnimationStartPos;
 	bool m_ChangedPosition;
 	float m_MoveTime;
@@ -93,8 +94,8 @@ public:
 
 	void ResetPositions();
 
+	void LoadThemeIcon(CTheme &Theme);
 	static int ThemeScan(const char *pName, int IsDir, int DirType, void *pUser);
-	static int ThemeIconScan(const char *pName, int IsDir, int DirType, void *pUser);
 
 	std::vector<CTheme> m_vThemes;
 
@@ -116,5 +117,7 @@ public:
 
 	std::vector<CTheme> &GetThemes();
 };
+
+std::array<vec2, CMenuBackground::NUM_POS> GenerateMenuBackgroundPositions();
 
 #endif

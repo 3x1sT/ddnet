@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <memory>
 
+#include <base/system.h>
+
 #include <engine/client/serverbrowser_ping_cache.h>
 #include <engine/console.h>
 #include <engine/engine.h>
@@ -13,7 +15,7 @@ TEST(ServerBrowser, PingCache)
 	CTestInfo Info;
 	Info.m_DeleteTestStorageFilesOnSuccess = true;
 
-	auto pConsole = std::unique_ptr<IConsole>(CreateConsole(CFGFLAG_CLIENT));
+	auto pConsole = CreateConsole(CFGFLAG_CLIENT);
 	auto pStorage = std::unique_ptr<IStorage>(Info.CreateTestStorage());
 	auto pPingCache = std::unique_ptr<IServerBrowserPingCache>(CreateServerBrowserPingCache(pConsole.get(), pStorage.get()));
 

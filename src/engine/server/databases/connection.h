@@ -1,9 +1,16 @@
 #ifndef ENGINE_SERVER_DATABASES_CONNECTION_H
 #define ENGINE_SERVER_DATABASES_CONNECTION_H
 
-#include <base/system.h>
+#include "connection_pool.h"
 
+#include <engine/shared/protocol.h>
 #include <memory>
+
+enum
+{
+	// MAX_NAME_LENGTH includes the size with \0, which is not necessary in SQL
+	MAX_NAME_LENGTH_SQL = MAX_NAME_LENGTH - 1,
+};
 
 class IConsole;
 
@@ -11,16 +18,10 @@ class IConsole;
 class IDbConnection
 {
 public:
-	IDbConnection(const char *pPrefix)
-	{
-		str_copy(m_aPrefix, pPrefix);
-	}
+	IDbConnection(const char *pPrefix);
 	virtual ~IDbConnection() {}
 	IDbConnection &operator=(const IDbConnection &) = delete;
 	virtual void Print(IConsole *pConsole, const char *pMode) = 0;
-
-	// copies the credentials, not the active connection
-	virtual IDbConnection *Copy() = 0;
 
 	// returns the database prefix
 	const char *GetPrefix() const { return m_aPrefix; }
@@ -90,26 +91,19 @@ private:
 	char m_aPrefix[64];
 
 protected:
-	void FormatCreateRace(char *aBuf, unsigned int BufferSize);
-	void FormatCreateTeamrace(char *aBuf, unsigned int BufferSize, const char *pIdType);
-	void FormatCreateMaps(char *aBuf, unsigned int BufferSize);
-	void FormatCreateSaves(char *aBuf, unsigned int BufferSize);
-	void FormatCreatePoints(char *aBuf, unsigned int BufferSize);
+	void FormatCreateRace(char *aBuf, unsigned int BufferSize, bool Backup) const;
+	void FormatCreateTeamrace(char *aBuf, unsigned int BufferSize, const char *pIdType, bool Backup) const;
+	void FormatCreateMaps(char *aBuf, unsigned int BufferSize) const;
+	void FormatCreateSaves(char *aBuf, unsigned int BufferSize, bool Backup) const;
+	void FormatCreatePoints(char *aBuf, unsigned int BufferSize) const;
 };
 
+bool MysqlAvailable();
 int MysqlInit();
 void MysqlUninit();
 
 std::unique_ptr<IDbConnection> CreateSqliteConnection(const char *pFilename, bool Setup);
 // Returns nullptr if MySQL support is not compiled in.
-std::unique_ptr<IDbConnection> CreateMysqlConnection(
-	const char *pDatabase,
-	const char *pPrefix,
-	const char *pUser,
-	const char *pPass,
-	const char *pIp,
-	const char *pBindaddr,
-	int Port,
-	bool Setup);
+std::unique_ptr<IDbConnection> CreateMysqlConnection(CMysqlConfig Config);
 
 #endif // ENGINE_SERVER_DATABASES_CONNECTION_H

@@ -5,7 +5,9 @@
 
 #include <game/gamecore.h>
 
-#include <list>
+#include "save.h"
+
+#include <vector>
 
 class CEntity;
 class CCharacter;
@@ -38,8 +40,6 @@ private:
 	class CGameContext *m_pGameServer;
 	class CConfig *m_pConfig;
 	class IServer *m_pServer;
-
-	void UpdatePlayerMaps();
 
 public:
 	class CGameContext *GameServer() { return m_pGameServer; }
@@ -88,8 +88,7 @@ public:
 		Returns:
 			Returns a pointer to the closest hit or NULL of there is no intersection.
 	*/
-	//CCharacter *IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, class CEntity *pNotThis = 0);
-	CCharacter *IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, CCharacter *pNotThis = 0, int CollideWith = -1, CCharacter *pThisOnly = 0);
+	CCharacter *IntersectCharacter(vec2 Pos0, vec2 Pos1, float Radius, vec2 &NewPos, const CCharacter *pNotThis = nullptr, int CollideWith = -1, const CCharacter *pThisOnly = nullptr);
 	/*
 		Function: ClosestCharacter
 			Finds the closest CCharacter to a specific point.
@@ -97,12 +96,12 @@ public:
 		Arguments:
 			Pos - The center position.
 			Radius - How far off the CCharacter is allowed to be
-			ppNotThis - Entity to ignore
+			pNotThis - Entity to ignore
 
 		Returns:
 			Returns a pointer to the closest CCharacter or NULL if no CCharacter is close enough.
 	*/
-	CCharacter *ClosestCharacter(vec2 Pos, float Radius, CEntity *ppNotThis);
+	CCharacter *ClosestCharacter(vec2 Pos, float Radius, const CEntity *pNotThis);
 
 	/*
 		Function: InsertEntity
@@ -122,6 +121,9 @@ public:
 	*/
 	void RemoveEntity(CEntity *pEntity);
 
+	void RemoveEntitiesFromPlayer(int PlayerId);
+	void RemoveEntitiesFromPlayers(int PlayerIds[], int NumPlayers);
+
 	/*
 		Function: Snap
 			Calls Snap on all the entities in the world to create
@@ -132,6 +134,12 @@ public:
 			is being created.
 	*/
 	void Snap(int SnappingClient);
+
+	/*
+		Function: PostSnap
+			Called after all clients received their snapshot.
+	*/
+	void PostSnap();
 
 	/*
 		Function: Tick
@@ -147,8 +155,14 @@ public:
 	*/
 	void SwapClients(int Client1, int Client2);
 
+	/*
+		Function: BlocksSave
+			Checks if any entity would block /save
+	*/
+	ESaveResult BlocksSave(int ClientId);
+
 	// DDRace
-	void ReleaseHooked(int ClientID);
+	void ReleaseHooked(int ClientId);
 
 	/*
 		Function: IntersectedCharacters
@@ -163,7 +177,13 @@ public:
 		Returns:
 			Returns list with all Characters on line.
 	*/
-	std::list<CCharacter *> IntersectedCharacters(vec2 Pos0, vec2 Pos1, float Radius, class CEntity *pNotThis = 0);
+	std::vector<CCharacter *> IntersectedCharacters(vec2 Pos0, vec2 Pos1, float Radius, const CEntity *pNotThis = nullptr);
+
+	CTuningParams *Tuning();
+
+	CTuningParams *m_pTuningList;
+	CTuningParams *TuningList() { return m_pTuningList; }
+	CTuningParams *GetTuning(int i) { return &TuningList()[i]; }
 };
 
 #endif

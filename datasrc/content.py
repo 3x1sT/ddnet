@@ -16,10 +16,11 @@ class SoundSet(Struct):
 			self.sounds.Add(Sound(filename))
 
 class Image(Struct):
-	def __init__(self, name="", filename=""):
+	def __init__(self, name="", filename="", linear_mapping=0):
 		Struct.__init__(self, "CDataImage")
 		self.name = String(name)
 		self.filename = String(filename)
+		self.flag = Int(linear_mapping)
 		self.id = TextureHandle()
 
 class SpriteSet(Struct):
@@ -254,6 +255,7 @@ container.images.Add(image_audio_source)
 container.images.Add(image_strongweak)
 container.images.Add(image_hud)
 container.images.Add(image_extras)
+container.images.Add(Image("raceflag", "race_flag.png"))
 
 container.pickups.Add(Pickup("health"))
 container.pickups.Add(Pickup("armor"))
@@ -446,6 +448,8 @@ container.sprites.Add(Sprite("hud_teleport_laser", set_hud, 8,4,2,2))
 container.sprites.Add(Sprite("hud_practice_mode", set_hud, 4,6,2,2))
 container.sprites.Add(Sprite("hud_dummy_hammer", set_hud, 6,6,2,2))
 container.sprites.Add(Sprite("hud_dummy_copy", set_hud, 8,6,2,2))
+container.sprites.Add(Sprite("hud_lock_mode", set_hud, 10,6,2,2))
+container.sprites.Add(Sprite("hud_team0_mode", set_hud, 12,6,2,2))
 
 container.sprites.Add(Sprite("part_snowflake", set_extras, 0,0,2,2))
 
@@ -582,7 +586,7 @@ weapon.visual_size.Set(64)
 weapon.offsetx.Set(32)
 weapon.offsety.Set(4)
 # the number after the plus sign is the sprite scale, which is calculated for all sprites ( w / sqrt(w² * h²) ) of the additionally added x offset, which is added now,
-# since the muzzle image is 32 pixels bigger, devided by 2, because a sprite's position is always at the center of the sprite image itself
+# since the muzzle image is 32 pixels bigger, divided by 2, because a sprite's position is always at the center of the sprite image itself
 # => the offset added, bcs the sprite is bigger now, but should not be shifted to the left
 # => 96 / sqrt(64×64+96×96)  (the original sprite scale)
 # => 64 × original sprite scale (the actual size of the sprite ingame see weapon.visual_size above)

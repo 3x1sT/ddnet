@@ -16,6 +16,7 @@
 CGun::CGun(CGameWorld *pGameWorld, vec2 Pos, bool Freeze, bool Explosive, int Layer, int Number) :
 	CEntity(pGameWorld, CGameWorld::ENTTYPE_LASER)
 {
+	m_Core = vec2(0.0f, 0.0f);
 	m_Pos = Pos;
 	m_Freeze = Freeze;
 	m_Explosive = Explosive;
@@ -30,7 +31,7 @@ CGun::CGun(CGameWorld *pGameWorld, vec2 Pos, bool Freeze, bool Explosive, int La
 
 void CGun::Tick()
 {
-	if(Server()->Tick() % int(Server()->TickSpeed() * 0.15f) == 0)
+	if(Server()->Tick() % (int)(Server()->TickSpeed() * 0.15f) == 0)
 	{
 		int Flags;
 		m_EvalTick = Server()->Tick();
@@ -50,11 +51,11 @@ void CGun::Tick()
 void CGun::Fire()
 {
 	// Create a list of players who are in the range of the turret
-	CCharacter *apPlayersInRange[MAX_CLIENTS];
+	CEntity *apPlayersInRange[MAX_CLIENTS];
 	mem_zero(apPlayersInRange, sizeof(apPlayersInRange));
 
 	int NumPlayersInRange = GameServer()->m_World.FindEntities(m_Pos, g_Config.m_SvPlasmaRange,
-		(CEntity **)apPlayersInRange, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
+		apPlayersInRange, MAX_CLIENTS, CGameWorld::ENTTYPE_CHARACTER);
 
 	// The closest player (within range) in a team is selected as the target
 	int aTargetIdInTeam[MAX_CLIENTS];
@@ -69,7 +70,7 @@ void CGun::Fire()
 
 	for(int i = 0; i < NumPlayersInRange; i++)
 	{
-		CCharacter *pTarget = apPlayersInRange[i];
+		CCharacter *pTarget = static_cast<CCharacter *>(apPlayersInRange[i]);
 		const int &TargetTeam = pTarget->Team();
 		// Do not fire at super players
 		if(TargetTeam == TEAM_SUPER)
@@ -84,7 +85,7 @@ void CGun::Fire()
 		}
 
 		// Turrets can only shoot at a speed of sv_plasma_per_sec
-		const int &TargetClientId = pTarget->GetPlayer()->GetCID();
+		const int &TargetClientId = pTarget->GetPlayer()->GetCid();
 		const bool &TargetIsSolo = pTarget->Teams()->m_Core.GetSolo(TargetClientId);
 		if((TargetIsSolo &&
 			   m_aLastFireSolo[TargetClientId] + Server()->TickSpeed() / g_Config.m_SvPlasmaPerSec > Server()->Tick()) ||
@@ -149,25 +150,12 @@ void CGun::Snap(int SnappingClient)
 
 	int SnappingClientVersion = GameServer()->GetClientVersion(SnappingClient);
 
-	CNetObj_EntityEx *pEntData = 0;
-	if(SnappingClientVersion >= VERSION_DDNET_SWITCH)
-	{
-		pEntData = static_cast<CNetObj_EntityEx *>(Server()->SnapNewItem(NETOBJTYPE_ENTITYEX, GetID(),
-			sizeof(CNetObj_EntityEx)));
-		if(pEntData)
-		{
-			pEntData->m_SwitchNumber = m_Number;
-			pEntData->m_Layer = m_Layer;
+	int Subtype = (m_Explosive ? 1 : 0) | (m_Freeze ? 2 : 0);
 
-			if(m_Explosive && !m_Freeze)
-				pEntData->m_EntityClass = ENTITYCLASS_GUN_NORMAL;
-			else if(m_Explosive && m_Freeze)
-				pEntData->m_EntityClass = ENTITYCLASS_GUN_EXPLOSIVE;
-			else if(!m_Explosive && m_Freeze)
-				pEntData->m_EntityClass = ENTITYCLASS_GUN_FREEZE;
-			else
-				pEntData->m_EntityClass = ENTITYCLASS_GUN_UNFREEZE;
-		}
+	int StartTick;
+	if(SnappingClientVersion >= VERSION_DDNET_ENTITY_NETOBJS)
+	{
+		StartTick = -1;
 	}
 	else
 	{
@@ -177,28 +165,17 @@ void CGun::Snap(int SnappingClient)
 		if(SnappingClient != SERVER_DEMO_CLIENT &&
 			(GameServer()->m_apPlayers[SnappingClient]->GetTeam() == TEAM_SPECTATORS ||
 				GameServer()->m_apPlayers[SnappingClient]->IsPaused()) &&
-			GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID != SPEC_FREEVIEW)
-			pChar = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorID);
+			GameServer()->m_apPlayers[SnappingClient]->m_SpectatorId != SPEC_FREEVIEW)
+			pChar = GameServer()->GetPlayerChar(GameServer()->m_apPlayers[SnappingClient]->m_SpectatorId);
 
 		int Tick = (Server()->Tick() % Server()->TickSpeed()) % 11;
 		if(pChar && m_Layer == LAYER_SWITCH && m_Number > 0 &&
 			!Switchers()[m_Number].m_aStatus[pChar->Team()] && (!Tick))
 			return;
+
+		StartTick = m_EvalTick;
 	}
 
-	CNetObj_Laser *pObj = static_cast<CNetObj_Laser *>(Server()->SnapNewItem(
-		NETOBJTYPE_LASER, GetID(), sizeof(CNetObj_Laser)));
-
-	if(!pObj)
-		return;
-
-	pObj->m_X = (int)m_Pos.x;
-	pObj->m_Y = (int)m_Pos.y;
-	pObj->m_FromX = (int)m_Pos.x;
-	pObj->m_FromY = (int)m_Pos.y;
-
-	if(pEntData)
-		pObj->m_StartTick = 0;
-	else
-		pObj->m_StartTick = m_EvalTick;
+	GameServer()->SnapLaserObject(CSnapContext(SnappingClientVersion), GetId(),
+		m_Pos, m_Pos, StartTick, -1, LASERTYPE_GUN, Subtype, m_Number);
 }

@@ -2,7 +2,11 @@
 /* If you are missing that file, acquire a complete release at teeworlds.com.                */
 #ifndef GAME_CLIENT_COMPONENTS_HUD_H
 #define GAME_CLIENT_COMPONENTS_HUD_H
+#include <engine/client.h>
+#include <engine/shared/protocol.h>
+#include <engine/textrender.h>
 #include <game/client/component.h>
+#include <game/generated/protocol.h>
 
 struct SScoreInfo
 {
@@ -13,7 +17,10 @@ struct SScoreInfo
 
 	void Reset()
 	{
-		m_TextRankContainerIndex = m_TextScoreContainerIndex = m_RoundRectQuadContainerIndex = m_OptionalNameTextContainerIndex = -1;
+		m_TextRankContainerIndex.Reset();
+		m_TextScoreContainerIndex.Reset();
+		m_RoundRectQuadContainerIndex = -1;
+		m_OptionalNameTextContainerIndex.Reset();
 		m_aScoreText[0] = 0;
 		m_aRankText[0] = 0;
 		m_aPlayerNameText[0] = 0;
@@ -21,14 +28,14 @@ struct SScoreInfo
 		m_Initialized = false;
 	}
 
-	int m_TextRankContainerIndex;
-	int m_TextScoreContainerIndex;
+	STextContainerIndex m_TextRankContainerIndex;
+	STextContainerIndex m_TextScoreContainerIndex;
 	float m_ScoreTextWidth;
 	char m_aScoreText[16];
 	char m_aRankText[16];
 	char m_aPlayerNameText[MAX_NAME_LENGTH];
 	int m_RoundRectQuadContainerIndex;
-	int m_OptionalNameTextContainerIndex;
+	STextContainerIndex m_OptionalNameTextContainerIndex;
 
 	bool m_Initialized;
 };
@@ -40,7 +47,22 @@ class CHud : public CComponent
 
 	int m_HudQuadContainerIndex;
 	SScoreInfo m_aScoreInfo[2];
-	int m_FPSTextContainerIndex;
+	STextContainerIndex m_FPSTextContainerIndex;
+	STextContainerIndex m_DDRaceEffectsTextContainerIndex;
+	STextContainerIndex m_PlayerAngleTextContainerIndex;
+	char m_aPlayerAngleText[128];
+	STextContainerIndex m_aPlayerSpeedTextContainers[2];
+	char m_aaPlayerSpeedText[2][128];
+	int m_aPlayerSpeed[2];
+	enum class ESpeedChange
+	{
+		NONE,
+		INCREASE,
+		DECREASE
+	};
+	ESpeedChange m_aLastPlayerSpeedChange[2];
+	STextContainerIndex m_aPlayerPositionContainers[2];
+	char m_aaPlayerPositionText[2][128];
 
 	void RenderCursor();
 
@@ -53,14 +75,20 @@ class CHud : public CComponent
 	void RenderAmmoHealthAndArmor(const CNetObj_Character *pCharacter);
 
 	void PreparePlayerStateQuads();
-	void RenderPlayerState(const int ClientID);
+	void RenderPlayerState(const int ClientId);
 	void RenderDummyActions();
-	void RenderMovementInformation(const int ClientID);
+	void RenderMovementInformation(const int ClientId);
+
+	void UpdateMovementInformationTextContainer(STextContainerIndex &TextContainer, float FontSize, float Value, char *pPrevValue, size_t Size);
+	void RenderMovementInformationTextContainer(STextContainerIndex &TextContainer, float X, float Y);
 
 	void RenderGameTimer();
 	void RenderPauseNotification();
 	void RenderSuddenDeath();
+
 	void RenderScoreHud();
+	int m_LastLocalClientId = -1;
+
 	void RenderSpectatorHud();
 	void RenderWarmupTimer();
 	void RenderLocalTime(float x);
@@ -76,6 +104,7 @@ public:
 	virtual void OnReset() override;
 	virtual void OnRender() override;
 	virtual void OnInit() override;
+	virtual void OnNewSnapshot() override;
 
 	// DDRace
 
@@ -107,12 +136,7 @@ private:
 	int m_FlagOffset;
 	int m_AirjumpOffset;
 	int m_AirjumpEmptyOffset;
-	int m_WeaponHammerOffset;
-	int m_WeaponGunOffset;
-	int m_WeaponShotgunOffset;
-	int m_WeaponGrenadeOffset;
-	int m_WeaponLaserOffset;
-	int m_WeaponNinjaOffset;
+	int m_aWeaponOffset[NUM_WEAPONS];
 	int m_EndlessJumpOffset;
 	int m_EndlessHookOffset;
 	int m_JetpackOffset;
@@ -132,6 +156,8 @@ private:
 	int m_DummyHammerOffset;
 	int m_DummyCopyOffset;
 	int m_PracticeModeOffset;
+	int m_Team0ModeOffset;
+	int m_LockModeOffset;
 };
 
 #endif
