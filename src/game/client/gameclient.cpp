@@ -213,6 +213,7 @@ void CGameClient::OnConsoleInit()
 
 	Console()->Chain("cl_dummy", ConchainSpecialDummy, this);
 	Console()->Chain("cl_text_entities_size", ConchainClTextEntitiesSize, this);
+	
 
 	Console()->Chain("cl_menu_map", ConchainMenuMap, this);
 
